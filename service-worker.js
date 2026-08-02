@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kas-meja-v1';
+const CACHE_NAME = 'kas-meja-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -20,9 +20,17 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
+// Network-first: always try to fetch the latest version first.
+// Only fall back to the cached copy when there's no network (offline).
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request).catch(() => cached))
+    fetch(e.request)
+      .then((res) => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then((c) => c.put(e.request, clone));
+        return res;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
