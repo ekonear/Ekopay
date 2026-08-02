@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Kas Meja — Bank Permainan</title>
+<meta name="description" content="Bank digital untuk malam permainan — bankir bagikan saldo, pemain transfer lewat scan QR.">
+<meta name="theme-color" content="#14302A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kas Meja">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="./config.js"></script>
+<style>
+  :root{
+    --ink: #14302A;
+    --ink-dk: #0C201B;
+    --paper: #EDE3C8;
+    --paper-lt: #F6F0DC;
+    --gold: #C9A227;
+    --stamp-red: #A63D40;
+    --leaf: #3F7D5C;
+    --text: #1B2620;
+    --muted: rgba(27,38,32,0.58);
+    --line: rgba(27,38,32,0.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--ink-dk);
+    background-image: radial-gradient(circle at 20% 0%, rgba(201,162,39,0.10), transparent 45%);
+    min-height:100vh;
+    font-family:'Inter', sans-serif;
+    color:var(--text);
+    display:flex;
+    justify-content:center;
+  }
+  .shell{
+    width:100%;
+    max-width:440px;
+    min-height:100vh;
+    background:var(--paper);
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    box-shadow:0 0 60px rgba(0,0,0,0.4);
+  }
+  .topbar{
+    background:var(--ink);
+    color:var(--paper-lt);
+    padding:22px 20px 26px;
+    position:relative;
+    overflow:hidden;
+  }
+  .topbar::after{
+    content:"";
+    position:absolute; left:0; right:0; bottom:-1px; height:14px;
+    background-image: radial-gradient(circle at 10px 0, transparent 9px, var(--ink) 9.5px);
+    background-size: 20px 14px;
+    background-repeat:repeat-x;
+  }
+  .stamp{
+    position:absolute; top:16px; right:18px;
+    width:56px;height:56px;border-radius:50%;
+    border:2px dashed var(--gold);
+    display:flex;align-items:center;justify-content:center;
+    transform:rotate(-10deg);
+    font-family:'Fraunces',serif; font-weight:700; font-size:10px; letter-spacing:1px;
+    color:var(--gold);
+    text-align:center;
+    line-height:1.1;
+  }
+  .brand{
+    font-family:'Fraunces',serif; font-weight:600; font-size:1.5rem; margin:0 0 2px;
+  }
+  .brand-sub{
+    font-size:0.78rem; color:rgba(246,240,220,0.65); margin:0;
+  }
+  .content{
+    flex:1;
+    padding:24px 20px 100px;
+    position:relative;
+  }
+  .center-screen{
+    display:flex; flex-direction:column; justify-content:center; min-height:calc(100vh - 20px);
+  }
+  h1.hero{
+    font-family:'Fraunces',serif; font-weight:600; font-size:2rem; line-height:1.1; margin:0 0 8px;
+    color:var(--ink);
+  }
+  .lede{ color:var(--muted); font-size:0.95rem; margin:0 0 28px; line-height:1.5;}
+  .role-card{
+    display:flex; align-items:center; gap:14px;
+    background:var(--paper-lt);
+    border:1.5px solid var(--line);
+    border-radius:14px;
+    padding:18px;
+    margin-bottom:14px;
+    cursor:pointer;
+    transition:transform .15s ease, border-color .15s ease;
+  }
+  .role-card:active{ transform:scale(0.98); }
+  .role-card:hover{ border-color:var(--gold); }
+  .role-emoji{ font-size:1.8rem; }
+  .role-title{ font-weight:700; font-size:1.02rem; margin:0 0 2px;}
+  .role-desc{ font-size:0.82rem; color:var(--muted); margin:0;}
+
+  label.field-label{ display:block; font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:6px;}
+  input[type=text], input[type=number]{
+    width:100%; padding:13px 14px; border-radius:10px; border:1.5px solid var(--line);
+    background:var(--paper-lt); font-family:'Inter',sans-serif; font-size:1rem; color:var(--text);
+    margin-bottom:16px;
+  }
+  input:focus{ outline:none; border-color:var(--gold); }
+  .btn{
+    display:block; width:100%; text-align:center;
+    padding:14px; border-radius:11px; border:none;
+    font-family:'Inter',sans-serif; font-weight:700; font-size:0.95rem;
+    cursor:pointer;
+  }
+  .btn-primary{ background:var(--ink); color:var(--paper-lt); }
+  .btn-primary:active{ background:var(--ink-dk); }
+  .btn-gold{ background:var(--gold); color:var(--ink-dk); }
+  .btn-outline{ background:transparent; color:var(--ink); border:1.5px solid var(--ink); }
+  .btn-danger{ background:transparent; color:var(--stamp-red); border:1.5px solid var(--stamp-red); }
+  .btn-sm{ padding:8px 14px; font-size:0.82rem; width:auto; border-radius:8px; }
+  .btn-row{ display:flex; gap:10px; margin-top:6px; }
+  .btn-row .btn{ flex:1; }
+
+  .balance-block{ text-align:center; padding:6px 0 4px; }
+  .balance-label{ font-size:0.78rem; text-transform:uppercase; letter-spacing:0.08em; color:rgba(246,240,220,0.6); margin-bottom:6px;}
+  .balance-num{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:2.5rem; color:var(--gold); letter-spacing:-0.5px;}
+  .owner-name{ font-family:'Fraunces',serif; font-size:1.15rem; margin:2px 0 0; color:var(--paper-lt);}
+
+  .card{ background:var(--paper-lt); border:1.5px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .section-title{ font-family:'Fraunces',serif; font-weight:600; font-size:1.1rem; margin:0 0 14px; display:flex; align-items:center; justify-content:space-between;}
+  .section-title small{ font-family:'Inter'; font-weight:600; font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em;}
+
+  .player-row{ display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px dashed var(--line); }
+  .player-row:last-child{ border-bottom:none; }
+  .player-name{ font-weight:600; font-size:0.95rem; }
+  .player-id{ font-size:0.72rem; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+  .player-bal{ font-family:'JetBrains Mono',monospace; font-weight:600; font-size:0.95rem; }
+
+  .tx-row{ display:flex; justify-content:space-between; align-items:flex-start; padding:11px 0; border-bottom:1px dashed var(--line); gap:10px;}
+  .tx-row:last-child{ border-bottom:none; }
+  .tx-desc{ font-size:0.86rem; }
+  .tx-desc b{ font-weight:700; }
+  .tx-time{ font-size:0.72rem; color:var(--muted); margin-top:2px; }
+  .tx-amt{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; white-space:nowrap;}
+  .tx-amt.plus{ color:var(--leaf); }
+  .tx-amt.minus{ color:var(--stamp-red); }
+
+  .empty-note{ color:var(--muted); font-size:0.85rem; text-align:center; padding:20px 10px; }
+
+  .tabbar{
+    position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width:440px;
+    background:var(--ink);
+    display:flex;
+    padding:10px 10px calc(10px + env(safe-area-inset-bottom));
+    z-index:20;
+  }
+  .tab-btn{
+    flex:1; background:none; border:none; color:rgba(246,240,220,0.55);
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    font-family:'Inter'; font-size:0.68rem; font-weight:600; letter-spacing:0.02em;
+    padding:6px 0; cursor:pointer; border-radius:8px;
+  }
+  .tab-btn.active{ color:var(--gold); }
+  .tab-emoji{ font-size:1.2rem; }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(12,32,27,0.62);
+    display:flex; align-items:flex-end; justify-content:center; z-index:50;
+  }
+  .modal-card{
+    background:var(--paper-lt); width:100%; max-width:440px;
+    border-radius:20px 20px 0 0; padding:24px 20px calc(24px + env(safe-area-inset-bottom));
+    animation:slideUp .18s ease-out;
+  }
+  @keyframes slideUp{ from{transform:translateY(24px); opacity:0;} to{transform:translateY(0); opacity:1;} }
+  .modal-title{ font-family:'Fraunces',serif; font-weight:600; font-size:1.2rem; margin:0 0 4px;}
+  .modal-sub{ font-size:0.82rem; color:var(--muted); margin:0 0 18px; }
+  .modal-close{ position:absolute; top:16px; right:18px; background:none; border:none; font-size:1.3rem; color:var(--muted); cursor:pointer;}
+
+  .qr-box{ background:white; border-radius:14px; padding:16px; display:flex; justify-content:center; margin-bottom:14px; }
+  #reader{ width:100%; border-radius:12px; overflow:hidden; margin-bottom:14px; }
+  .target-pill{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--paper); border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:16px;
+  }
+  .link-list{ list-style:none; padding:0; margin:0; }
+  .link-item{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:11px 4px; border-bottom:1px dashed var(--line); cursor:pointer;
+  }
+  .link-item:last-child{border-bottom:none;}
+  .link-item:active{ background:rgba(201,162,39,0.1); }
+  .toast{
+    position:fixed; top:18px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--paper-lt); padding:12px 18px; border-radius:10px;
+    font-size:0.85rem; font-weight:600; z-index:100; box-shadow:0 6px 20px rgba(0,0,0,0.3);
+    max-width:88%; text-align:center;
+  }
+  .toast.err{ background:var(--stamp-red); }
+  .toast.ok{ background:var(--leaf); }
+  .hint{ font-size:0.76rem; color:var(--muted); margin-top:-6px; margin-bottom:14px; line-height:1.4;}
+  .id-tag{ font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--muted); word-break:break-all; }
+  .config-warning{
+    background:var(--stamp-red); color:#fff; padding:14px 16px; border-radius:12px;
+    font-size:0.82rem; line-height:1.5; margin-bottom:18px;
+  }
+  .config-warning code{ background:rgba(255,255,255,0.18); padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="shell" id="shell">
+  <div id="app"></div>
+</div>
+
+<script>
+/* ---------------- Firebase Realtime Database REST helpers ---------------- */
+/* FIREBASE_URL comes from config.js. No SDK needed, plain REST calls. */
+const CONFIG_OK = typeof FIREBASE_URL === 'string' && FIREBASE_URL.startsWith('https://') && FIREBASE_URL.indexOf('GANTI-DENGAN') === -1;
+
+async function fbGet(path){
+  if(!CONFIG_OK) return null;
+  try{
+    const res = await fetch(`${FIREBASE_URL}/${path}.json`);
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){ console.error(e); return null; }
+}
+async function fbPut(path, value){
+  if(!CONFIG_OK) return false;
+  try{
+    await fetch(`${FIREBASE_URL}/${path}.json`, { method:'PUT', body: JSON.stringify(value) });
+    return true;
+  }catch(e){ console.error(e); return false; }
+}
+async function fbPost(path, value){
+  if(!CONFIG_OK) return null;
+  try{
+    const res = await fetch(`${FIREBASE_URL}/${path}.json`, { method:'POST', body: JSON.stringify(value) });
+    return await res.json();
+  }catch(e){ console.error(e); return null; }
+}
+async function fbDelete(path){
+  if(!CONFIG_OK) return false;
+  try{ await fetch(`${FIREBASE_URL}/${path}.json`, { method:'DELETE' }); return true; }catch(e){ return false; }
+}
+
+async function getBank(){ return await fbGet('bank'); }
+async function setBank(b){ await fbPut('bank', b); }
+
+async function getPlayer(id){ return await fbGet('players/'+id); }
+async function setPlayer(p){ await fbPut('players/'+p.id, p); }
+
+async function listPlayers(){
+  const obj = await fbGet('players');
+  if(!obj) return [];
+  const arr = Object.values(obj);
+  arr.sort((a,b)=> a.name.localeCompare(b.name));
+  return arr;
+}
+
+async function addTx(tx){ await fbPost('txs', tx); }
+async function listTx(){
+  const obj = await fbGet('txs');
+  if(!obj) return [];
+  const arr = Object.values(obj);
+  arr.sort((a,b)=> b.time - a.time);
+  return arr;
+}
+
+function slugify(name){
+  let s = name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-+|-+$)/g,'');
+  if(!s) s = 'pemain';
+  return s;
+}
+function money(n){
+  n = Math.round(Number(n)||0);
+  return 'Rp ' + n.toLocaleString('id-ID');
+}
+function timeAgo(ts){
+  const d = new Date(ts);
+  return d.toLocaleString('id-ID', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
+}
+
+/* ---------------- state ---------------- */
+let state = {
+  view: 'role',        // role | bank-setup | bank | player-join | player
+  bank: null,
+  players: [],
+  txs: [],
+  me: null,             // {id,name,balance}
+  tab: 'home',
+  modal: null,
+  scanner: null,
+  transferTarget: null,
+};
+
+let pollTimer = null;
+function startPolling(){
+  stopPolling();
+  pollTimer = setInterval(refreshData, 4000);
+}
+function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+
+async function refreshData(){
+  if(state.modal && state.modal.type === 'scan') return; // don't disturb camera
+  if(state.view === 'bank'){
+    state.bank = await getBank();
+    state.players = await listPlayers();
+    state.txs = await listTx();
+    render();
+  } else if(state.view === 'player'){
+    const fresh = await getPlayer(state.me.id);
+    if(fresh) state.me = fresh;
+    state.players = await listPlayers();
+    state.txs = await listTx();
+    render();
+  }
+}
+
+function toast(msg, kind){
+  const t = document.createElement('div');
+  t.className = 'toast' + (kind ? ' '+kind : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>{ t.remove(); }, 2400);
+}
+
+/* ---------------- render dispatcher ---------------- */
+function render(){
+  const app = document.getElementById('app');
+  if(state.view === 'role') app.innerHTML = viewRole();
+  else if(state.view === 'bank-setup') app.innerHTML = viewBankSetup();
+  else if(state.view === 'bank') app.innerHTML = viewBank();
+  else if(state.view === 'player-join') app.innerHTML = viewPlayerJoin();
+  else if(state.view === 'player') app.innerHTML = viewPlayer();
+
+  if(state.modal) renderModalInto();
+  postRender();
+}
+
+function postRender(){
+  document.querySelectorAll('[data-qr]').forEach(el=>{
+    const content = el.getAttribute('data-qr');
+    el.innerHTML = '';
+    try{
+      new QRCode(el, { text: content, width: 190, height: 190, colorDark:"#14302A", colorLight:"#ffffff" });
+    }catch(e){}
+  });
+  if(state.modal && state.modal.type === 'scan'){
+    startScanner();
+  }
+}
+
+/* ---------------- ROLE SELECT ---------------- */
+function viewRole(){
+  const warning = !CONFIG_OK ? `
+    <div class="config-warning">
+      ⚠️ Belum terhubung ke database. Buka file <code>config.js</code> dan ganti <code>FIREBASE_URL</code> dengan Database URL dari Firebase kamu. Lihat README.md untuk caranya.
+    </div>` : '';
+  return `
+  <div class="content center-screen">
+    ${warning}
+    <div class="stamp" style="position:static;transform:rotate(-8deg);width:64px;height:64px;margin-bottom:18px;color:var(--stamp-red);border-color:var(--stamp-red);">SAH<br>MAIN</div>
+    <h1 class="hero">Kas Meja</h1>
+    <p class="lede">Bank digital buat malam permainan. Bankir bagikan saldo, pemain transfer lewat scan QR — nggak perlu uang kertas.</p>
+
+    <div class="role-card" onclick="goRoleBank()">
+      <div class="role-emoji">🏦</div>
+      <div>
+        <p class="role-title">Saya Bankir</p>
+        <p class="role-desc">Buka kas, bagikan saldo, pantau semua transaksi</p>
+      </div>
+    </div>
+    <div class="role-card" onclick="goRolePlayer()">
+      <div class="role-emoji">👛</div>
+      <div>
+        <p class="role-title">Saya Pemain</p>
+        <p class="role-desc">Punya dompet sendiri, kirim &amp; terima lewat QR</p>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:10px;">Semua orang yang membuka aplikasi ini (di HP masing-masing) akan berbagi kas &amp; saldo yang sama secara langsung.</p>
+  </div>`;
+}
+
+async function goRoleBank(){
+  if(!CONFIG_OK){ toast('Hubungkan database dulu di config.js', 'err'); return; }
+  state.bank = await getBank();
+  state.view = state.bank ? 'bank' : 'bank-setup';
+  if(state.view === 'bank'){
+    state.players = await listPlayers();
+    state.txs = await listTx();
+    startPolling();
+  }
+  render();
+}
+function goRolePlayer(){
+  if(!CONFIG_OK){ toast('Hubungkan database dulu di config.js', 'err'); return; }
+  state.view = 'player-join';
+  render();
+}
+
+/* ---------------- BANK SETUP ---------------- */
+function viewBankSetup(){
+  return `
+  <div class="topbar">
+    <div class="brand">🏦 Buka Kas</div>
+    <p class="brand-sub">Tentukan dana awal yang akan kamu bagikan</p>
+  </div>
+  <div class="content">
+    <label class="field-label">Dana Awal Bank</label>
+    <input type="number" id="initBank" inputmode="numeric" placeholder="contoh: 1000000">
+    <p class="hint">Ini total saldo yang bisa kamu bagikan ke pemain. Bisa ditambah lagi nanti kapan saja.</p>
+    <button class="btn btn-primary" onclick="submitBankSetup()">Buka Kas</button>
+    <button class="btn btn-outline" style="margin-top:10px;" onclick="backToRole()">Kembali</button>
+  </div>`;
+}
+async function submitBankSetup(){
+  const val = parseInt(document.getElementById('initBank').value, 10);
+  if(!val || val <= 0){ toast('Masukkan jumlah dana yang valid', 'err'); return; }
+  state.bank = { balance: val };
+  await setBank(state.bank);
+  state.players = await listPlayers();
+  state.txs = await listTx();
+  state.view = 'bank';
+  startPolling();
+  render();
+}
+function backToRole(){ stopPolling(); state.view = 'role'; render(); }
+
+/* ---------------- BANK DASHBOARD ---------------- */
+function viewBank(){
+  const tab = state.tab;
+  return `
+  <div class="topbar">
+    <div class="stamp">SAH<br>BANK</div>
+    <div class="brand">🏦 Kas Bankir</div>
+    <div class="balance-block" style="text-align:left;padding-top:10px;">
+      <div class="balance-label">Saldo Bank</div>
+      <div class="balance-num" style="font-size:2.1rem;">${money(state.bank ? state.bank.balance : 0)}</div>
+    </div>
+  </div>
+  <div class="content">
+    ${tab === 'home' ? bankHomeTab() : ''}
+    ${tab === 'players' ? bankPlayersTab() : ''}
+    ${tab === 'history' ? historyTab(null) : ''}
+  </div>
+  ${tabbar([
+    {id:'home', emoji:'⚙️', label:'Aksi'},
+    {id:'players', emoji:'👛', label:'Pemain'},
+    {id:'history', emoji:'🧾', label:'Riwayat'},
+  ], setBankTab)}
+  `;
+}
+function setBankTab(id){ state.tab = id; render(); }
+
+function bankHomeTab(){
+  return `
+  <div class="card">
+    <div class="section-title">QR Bank <small>terima dari pemain</small></div>
+    <div class="qr-box" data-qr="WG-BANK"></div>
+    <p class="hint" style="margin-bottom:0;">Pemain scan ini untuk mengembalikan saldo ke bank.</p>
+  </div>
+  <button class="btn btn-primary" onclick="openModal('addPlayer')">➕ Tambah Pemain Baru</button>
+  <button class="btn btn-outline" style="margin-top:10px;" onclick="openModal('fundBank')">💰 Tambah Dana ke Bank</button>
+  <button class="btn btn-danger" style="margin-top:10px;" onclick="openModal('reset')">Reset Permainan</button>
+  `;
+}
+function bankPlayersTab(){
+  const rows = state.players.map(p => `
+    <div class="player-row">
+      <div>
+        <div class="player-name">${escapeHtml(p.name)}</div>
+        <div class="player-id">${p.id}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="player-bal">${money(p.balance)}</div>
+        <button class="btn btn-gold btn-sm" onclick="openModal('topup','${p.id}')">Isi</button>
+      </div>
+    </div>`).join('');
+  return `
+  <div class="card">
+    <div class="section-title">Daftar Pemain <small>${state.players.length} orang</small></div>
+    ${rows || '<p class="empty-note">Belum ada pemain. Tambahkan lewat tab Aksi.</p>'}
+  </div>`;
+}
+
+async function submitAddPlayer(){
+  const nameEl = document.getElementById('newPlayerName');
+  const name = nameEl.value.trim();
+  if(!name){ toast('Masukkan nama pemain', 'err'); return; }
+  let id = slugify(name);
+  let existing = await getPlayer(id);
+  let i = 2;
+  while(existing){ id = slugify(name) + '-' + i; existing = await getPlayer(id); i++; }
+  const p = { id, name, balance: 0, createdAt: Date.now() };
+  await setPlayer(p);
+  toast('Pemain "'+name+'" ditambahkan', 'ok');
+  closeModal();
+  state.players = await listPlayers();
+  render();
+}
+
+async function submitTopup(){
+  const id = state.modal.playerId;
+  const amt = parseInt(document.getElementById('topupAmt').value, 10);
+  if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
+  const bank = await getBank();
+  if(bank.balance < amt){ toast('Saldo bank tidak cukup', 'err'); return; }
+  const player = await getPlayer(id);
+  if(!player){ toast('Pemain tidak ditemukan', 'err'); return; }
+  bank.balance -= amt;
+  player.balance += amt;
+  await setBank(bank);
+  await setPlayer(player);
+  await addTx({ from:'BANK', fromName:'Bank', to:player.id, toName:player.name, amount:amt, time:Date.now() });
+  toast('Berhasil isi saldo '+player.name, 'ok');
+  closeModal();
+  state.bank = bank;
+  state.players = await listPlayers();
+  state.txs = await listTx();
+  render();
+}
+
+async function submitFundBank(){
+  const amt = parseInt(document.getElementById('fundAmt').value, 10);
+  if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
+  const bank = await getBank();
+  bank.balance += amt;
+  await setBank(bank);
+  toast('Dana bank ditambahkan', 'ok');
+  closeModal();
+  state.bank = bank;
+  render();
+}
+
+async function submitReset(){
+  await fbDelete('players');
+  await fbDelete('txs');
+  await fbDelete('bank');
+  toast('Permainan direset', 'ok');
+  stopPolling();
+  state = { view:'role', bank:null, players:[], txs:[], me:null, tab:'home', modal:null, scanner:null, transferTarget:null };
+  render();
+}
+
+/* ---------------- PLAYER JOIN ---------------- */
+function viewPlayerJoin(){
+  return `
+  <div class="topbar">
+    <div class="brand">👛 Dompet Saya</div>
+    <p class="brand-sub">Masuk atau buat dompet baru</p>
+  </div>
+  <div class="content">
+    <label class="field-label">Nama Kamu</label>
+    <input type="text" id="playerName" placeholder="contoh: Sinta" autocomplete="off">
+    <p class="hint">Kalau bankir sudah mendaftarkanmu, gunakan nama yang sama. Kalau belum, dompet baru akan langsung dibuat dengan saldo 0 — minta bankir untuk mengisi.</p>
+    <button class="btn btn-primary" onclick="submitPlayerJoin()">Masuk / Buat Dompet</button>
+    <button class="btn btn-outline" style="margin-top:10px;" onclick="backToRole()">Kembali</button>
+  </div>`;
+}
+async function submitPlayerJoin(){
+  const name = document.getElementById('playerName').value.trim();
+  if(!name){ toast('Masukkan nama kamu', 'err'); return; }
+  const id = slugify(name);
+  let p = await getPlayer(id);
+  if(!p){
+    p = { id, name, balance: 0, createdAt: Date.now() };
+    await setPlayer(p);
+    toast('Dompet baru dibuat untuk '+name, 'ok');
+  }
+  state.me = p;
+  state.players = await listPlayers();
+  state.txs = await listTx();
+  state.view = 'player';
+  state.tab = 'home';
+  startPolling();
+  render();
+}
+
+/* ---------------- PLAYER DASHBOARD ---------------- */
+function viewPlayer(){
+  const tab = state.tab;
+  return `
+  <div class="topbar">
+    <div class="stamp">SAH<br>MAIN</div>
+    <div class="brand">👛 Dompetku</div>
+    <div class="balance-block">
+      <div class="balance-label">Saldo</div>
+      <div class="balance-num">${money(state.me.balance)}</div>
+      <div class="owner-name">${escapeHtml(state.me.name)}</div>
+    </div>
+  </div>
+  <div class="content">
+    ${tab === 'home' ? playerHomeTab() : ''}
+    ${tab === 'transfer' ? playerTransferTab() : ''}
+    ${tab === 'history' ? historyTab(state.me.id) : ''}
+  </div>
+  ${tabbar([
+    {id:'home', emoji:'📇', label:'QR Saya'},
+    {id:'transfer', emoji:'📤', label:'Transfer'},
+    {id:'history', emoji:'🧾', label:'Riwayat'},
+  ], setPlayerTab)}
+  `;
+}
+function setPlayerTab(id){ state.tab = id; state.transferTarget = null; render(); }
+
+function playerHomeTab(){
+  return `
+  <div class="card">
+    <div class="section-title">QR Saya <small>tunjukkan untuk menerima</small></div>
+    <div class="qr-box" data-qr="WG-PLAYER:${state.me.id}"></div>
+    <p class="hint" style="margin-bottom:0;">Pengirim tinggal scan QR ini untuk mengirim saldo ke kamu.</p>
+  </div>`;
+}
+
+function playerTransferTab(){
+  if(state.transferTarget){
+    const t = state.transferTarget;
+    return `
+    <div class="card">
+      <div class="section-title">Kirim Saldo</div>
+      <div class="target-pill">
+        <div>
+          <div class="player-name">${t.type==='bank' ? '🏦 Bank' : '👛 '+escapeHtml(t.name)}</div>
+          <div class="id-tag">${t.type==='bank' ? 'WG-BANK' : t.id}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="clearTransferTarget()">Ganti</button>
+      </div>
+      <label class="field-label">Jumlah</label>
+      <input type="number" id="sendAmt" inputmode="numeric" placeholder="contoh: 50000">
+      <button class="btn btn-primary" onclick="submitTransfer()">Kirim Sekarang</button>
+    </div>`;
+  }
+  const others = state.players.filter(p => p.id !== state.me.id);
+  const list = others.map(p => `
+    <li class="link-item" onclick="pickTarget('player','${p.id}','${escapeHtml(p.name).replace(/'/g,"\\'")}')">
+      <span>👛 ${escapeHtml(p.name)}</span>
+      <span class="player-bal">${money(p.balance)}</span>
+    </li>`).join('');
+  return `
+  <div class="card">
+    <div class="section-title">Pindai QR Tujuan</div>
+    <button class="btn btn-gold" onclick="openModal('scan')">📷 Buka Kamera</button>
+    <p class="hint" style="margin-top:10px;">Kalau kamera tidak bisa diakses, pilih tujuan manual di bawah.</p>
+  </div>
+  <div class="card">
+    <div class="section-title">Atau Pilih Manual</div>
+    <ul class="link-list">
+      <li class="link-item" onclick="pickTarget('bank', null, 'Bank')">
+        <span>🏦 Bank</span>
+        <span class="player-bal">${money(state.bank ? state.bank.balance : 0)}</span>
+      </li>
+      ${list}
+    </ul>
+    ${others.length === 0 ? '<p class="empty-note">Belum ada pemain lain.</p>' : ''}
+  </div>`;
+}
+
+function pickTarget(type, id, name){
+  state.transferTarget = { type, id, name };
+  render();
+}
+function clearTransferTarget(){ state.transferTarget = null; render(); }
+
+async function submitTransfer(){
+  const amt = parseInt(document.getElementById('sendAmt').value, 10);
+  if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
+  const me = await getPlayer(state.me.id);
+  if(me.balance < amt){ toast('Saldo kamu tidak cukup', 'err'); return; }
+  const t = state.transferTarget;
+  me.balance -= amt;
+  await setPlayer(me);
+  let toName = 'Bank';
+  if(t.type === 'bank'){
+    const bank = await getBank();
+    bank.balance += amt;
+    await setBank(bank);
+  } else {
+    const target = await getPlayer(t.id);
+    if(!target){ toast('Penerima tidak ditemukan', 'err'); me.balance += amt; await setPlayer(me); return; }
+    target.balance += amt;
+    await setPlayer(target);
+    toName = target.name;
+  }
+  await addTx({ from: me.id, fromName: me.name, to: t.type==='bank' ? 'BANK' : t.id, toName, amount: amt, time: Date.now() });
+  toast('Berhasil kirim ke '+toName, 'ok');
+  state.me = me;
+  state.transferTarget = null;
+  state.players = await listPlayers();
+  state.bank = await getBank();
+  state.txs = await listTx();
+  render();
+}
+
+/* ---------------- shared: history + tabbar + modal ---------------- */
+function historyTab(filterId){
+  let txs = state.txs;
+  if(filterId) txs = txs.filter(t => t.from === filterId || t.to === filterId);
+  const rows = txs.slice(0, 60).map(t => {
+    const isOut = filterId && t.from === filterId;
+    const sign = filterId ? (isOut ? 'minus' : 'plus') : '';
+    const prefix = filterId ? (isOut ? '-' : '+') : '';
+    const desc = filterId
+      ? (isOut ? `Ke <b>${escapeHtml(t.toName)}</b>` : `Dari <b>${escapeHtml(t.fromName)}</b>`)
+      : `<b>${escapeHtml(t.fromName)}</b> → <b>${escapeHtml(t.toName)}</b>`;
+    return `
+    <div class="tx-row">
+      <div>
+        <div class="tx-desc">${desc}</div>
+        <div class="tx-time">${timeAgo(t.time)}</div>
+      </div>
+      <div class="tx-amt ${sign}">${prefix}${money(t.amount)}</div>
+    </div>`;
+  }).join('');
+  return `<div class="card"><div class="section-title">Riwayat Transaksi</div>${rows || '<p class="empty-note">Belum ada transaksi.</p>'}</div>`;
+}
+
+function tabbar(tabs, handler){
+  const name = handler === setBankTab ? 'setBankTab' : 'setPlayerTab';
+  return `<div class="tabbar">
+    ${tabs.map(t => `
+      <button class="tab-btn ${state.tab===t.id?'active':''}" onclick="${name}('${t.id}')">
+        <span class="tab-emoji">${t.emoji}</span>${t.label}
+      </button>`).join('')}
+  </div>`;
+}
+
+function openModal(type, playerId){
+  state.modal = { type, playerId };
+  render();
+}
+function closeModal(){
+  stopScanner();
+  state.modal = null;
+  render();
+}
+function renderModalInto(){
+  const m = state.modal;
+  let inner = '';
+  if(m.type === 'addPlayer'){
+    inner = `
+      <div class="modal-title">Tambah Pemain</div>
+      <p class="modal-sub">Pemain baru dimulai dengan saldo 0.</p>
+      <label class="field-label">Nama</label>
+      <input type="text" id="newPlayerName" placeholder="contoh: Budi" autocomplete="off">
+      <button class="btn btn-primary" onclick="submitAddPlayer()">Tambahkan</button>`;
+  } else if(m.type === 'topup'){
+    const p = state.players.find(x => x.id === m.playerId);
+    inner = `
+      <div class="modal-title">Isi Saldo ${p ? escapeHtml(p.name) : ''}</div>
+      <p class="modal-sub">Saldo saat ini: ${money(p ? p.balance : 0)}</p>
+      <label class="field-label">Jumlah</label>
+      <input type="number" id="topupAmt" inputmode="numeric" placeholder="contoh: 100000">
+      <button class="btn btn-primary" onclick="submitTopup()">Kirim dari Bank</button>`;
+  } else if(m.type === 'fundBank'){
+    inner = `
+      <div class="modal-title">Tambah Dana Bank</div>
+      <p class="modal-sub">Menambah pool dana yang bisa dibagikan.</p>
+      <label class="field-label">Jumlah</label>
+      <input type="number" id="fundAmt" inputmode="numeric" placeholder="contoh: 500000">
+      <button class="btn btn-primary" onclick="submitFundBank()">Tambahkan</button>`;
+  } else if(m.type === 'reset'){
+    inner = `
+      <div class="modal-title">Reset Permainan?</div>
+      <p class="modal-sub">Semua pemain, saldo, dan riwayat transaksi akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.</p>
+      <button class="btn btn-danger" onclick="submitReset()">Ya, Reset Semua</button>`;
+  } else if(m.type === 'scan'){
+    inner = `
+      <div class="modal-title">Pindai QR</div>
+      <p class="modal-sub">Arahkan kamera ke QR tujuan.</p>
+      <div id="reader"></div>
+      <p class="hint" id="scanHint" style="margin-bottom:0;">Meminta izin kamera…</p>`;
+  }
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modalOverlay';
+  overlay.innerHTML = `<div class="modal-card" style="position:relative;">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      ${inner}
+    </div>`;
+  overlay.addEventListener('click', (e)=>{ if(e.target.id === 'modalOverlay') closeModal(); });
+  document.getElementById('shell').appendChild(overlay);
+}
+
+function startScanner(){
+  const readerEl = document.getElementById('reader');
+  if(!readerEl || typeof Html5Qrcode === 'undefined') return;
+  const hint = document.getElementById('scanHint');
+  try{
+    const qr = new Html5Qrcode('reader');
+    state.scanner = qr;
+    qr.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: 220 },
+      (decodedText) => { handleScanResult(decodedText); },
+      () => {}
+    ).then(()=>{ if(hint) hint.textContent = 'Arahkan kamera ke QR tujuan.'; })
+    .catch((err)=>{
+      if(hint) hint.textContent = 'Kamera tidak bisa diakses. Tutup jendela ini dan pilih tujuan secara manual dari daftar.';
+    });
+  }catch(e){
+    if(hint) hint.textContent = 'Kamera tidak tersedia. Pilih tujuan secara manual dari daftar.';
+  }
+}
+function stopScanner(){
+  if(state.scanner){
+    try{ state.scanner.stop().then(()=>{ try{ state.scanner.clear(); }catch(e){} }); }catch(e){}
+    state.scanner = null;
+  }
+}
+async function handleScanResult(text){
+  stopScanner();
+  if(text === 'WG-BANK'){
+    state.modal = null;
+    pickTarget('bank', null, 'Bank');
+    return;
+  }
+  if(text && text.indexOf('WG-PLAYER:') === 0){
+    const id = text.replace('WG-PLAYER:', '');
+    if(id === state.me.id){ toast('Tidak bisa kirim ke diri sendiri', 'err'); state.modal = null; render(); return; }
+    const p = await getPlayer(id);
+    if(!p){ toast('Pemain tidak ditemukan', 'err'); state.modal = null; render(); return; }
+    state.modal = null;
+    pickTarget('player', p.id, p.name);
+    return;
+  }
+  toast('QR tidak dikenali', 'err');
+  state.modal = null;
+  render();
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
+
+/* ---------------- init ---------------- */
+render();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
