@@ -308,13 +308,6 @@ let state = {
   transferTarget: null,
 };
 
-let pollTimer = null;
-function startPolling(){
-  stopPolling();
-  pollTimer = setInterval(refreshData, 4000);
-}
-function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
-
 async function refreshData(){
   if(state.modal) return; // don't disturb open modals (typing, camera, etc.)
   if(state.transferTarget) return; // don't disturb the amount-entry screen on Transfer tab
@@ -330,6 +323,17 @@ async function refreshData(){
     state.txs = await listTx();
     render();
   }
+}
+
+// Refresh when the app/tab becomes visible again (e.g. user switches back from another app),
+// but never while someone is mid-typing in a modal or the transfer amount screen.
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) refreshData();
+});
+
+async function manualRefresh(){
+  await refreshData();
+  toast('Data diperbarui', 'ok');
 }
 
 function toast(msg, kind){
@@ -406,7 +410,6 @@ async function goRoleBank(){
   if(state.view === 'bank'){
     state.players = await listPlayers();
     state.txs = await listTx();
-    startPolling();
   }
   render();
 }
@@ -439,10 +442,9 @@ async function submitBankSetup(){
   state.players = await listPlayers();
   state.txs = await listTx();
   state.view = 'bank';
-  startPolling();
   render();
 }
-function backToRole(){ stopPolling(); state.view = 'role'; render(); }
+function backToRole(){ state.view = 'role'; render(); }
 
 /* ---------------- BANK DASHBOARD ---------------- */
 function viewBank(){
@@ -468,10 +470,11 @@ function viewBank(){
   ], setBankTab)}
   `;
 }
-function setBankTab(id){ state.tab = id; render(); }
+function setBankTab(id){ state.tab = id; render(); refreshData(); }
 
 function bankHomeTab(){
   return `
+  <button class="btn btn-outline" style="margin-bottom:16px;" onclick="manualRefresh()">🔄 Perbarui Data</button>
   <div class="card">
     <div class="section-title">QR Bank <small>terima dari pemain</small></div>
     <div class="qr-box" data-qr="WG-BANK"></div>
@@ -555,7 +558,7 @@ async function submitReset(){
   await fbDelete('txs');
   await fbDelete('bank');
   toast('Permainan direset', 'ok');
-  stopPolling();
+ 
   state = { view:'role', bank:null, players:[], txs:[], me:null, tab:'home', modal:null, scanner:null, transferTarget:null };
   render();
 }
@@ -590,7 +593,6 @@ async function submitPlayerJoin(){
   state.txs = await listTx();
   state.view = 'player';
   state.tab = 'home';
-  startPolling();
   render();
 }
 
@@ -619,10 +621,11 @@ function viewPlayer(){
   ], setPlayerTab)}
   `;
 }
-function setPlayerTab(id){ state.tab = id; state.transferTarget = null; render(); }
+function setPlayerTab(id){ state.tab = id; state.transferTarget = null; render(); refreshData(); }
 
 function playerHomeTab(){
   return `
+  <button class="btn btn-outline" style="margin-bottom:16px;" onclick="manualRefresh()">🔄 Perbarui Saldo</button>
   <div class="card">
     <div class="section-title">QR Saya <small>tunjukkan untuk menerima</small></div>
     <div class="qr-box" data-qr="WG-PLAYER:${state.me.id}"></div>
@@ -655,6 +658,7 @@ function playerTransferTab(){
       <span class="player-bal">${money(p.balance)}</span>
     </li>`).join('');
   return `
+  <button class="btn btn-outline" style="margin-bottom:16px;" onclick="manualRefresh()">🔄 Perbarui Daftar</button>
   <div class="card">
     <div class="section-title">Pindai QR Tujuan</div>
     <button class="btn btn-gold" onclick="openModal('scan')">📷 Buka Kamera</button>
