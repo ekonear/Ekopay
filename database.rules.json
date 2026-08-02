@@ -1,0 +1,32 @@
+{
+  "rules": {
+    "meta": {
+      "bankerUid": {
+        ".read": true,
+        ".write": "!data.exists() && auth != null"
+      }
+    },
+    "bank": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('meta/bankerUid').val() === auth.uid"
+    },
+    "players": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && (auth.uid === $uid || root.child('meta/bankerUid').val() === auth.uid)"
+      }
+    },
+    "paymentRequests": {
+      ".read": "auth != null",
+      "$reqId": {
+        ".write": "auth != null && root.child('meta/bankerUid').val() === auth.uid"
+      }
+    },
+    "txs": {
+      ".read": "auth != null",
+      "$txId": {
+        ".write": "auth != null"
+      }
+    }
+  }
+}

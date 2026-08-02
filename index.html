@@ -219,8 +219,21 @@
     font-size:0.82rem; line-height:1.5; margin-bottom:18px;
   }
   .config-warning code{ background:rgba(255,255,255,0.18); padding:1px 5px; border-radius:4px; }
+  .role-badge{
+    display:inline-block; font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;
+    padding:3px 9px; border-radius:20px; background:rgba(201,162,39,0.18); color:var(--gold); margin-bottom:10px;
+  }
+  .amount-lock{
+    text-align:center; padding:22px 10px; background:var(--paper); border-radius:12px; margin-bottom:16px;
+  }
+  .amount-lock .lbl{ font-size:0.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px; }
+  .amount-lock .num{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:2rem; color:var(--ink); }
+  .logout-link{
+    background:none; border:none; color:rgba(246,240,220,0.6); font-size:0.76rem; font-weight:600;
+    position:absolute; top:20px; left:20px; cursor:pointer; padding:4px;
+  }
+  .spinner-note{ text-align:center; color:var(--muted); font-size:0.85rem; padding:40px 10px; }
 </style>
-</head>
 <body>
 <div class="shell" id="shell">
   <div id="app"></div>
@@ -228,50 +241,95 @@
 
 <script>
 /* ---------------- Firebase Realtime Database REST helpers ---------------- */
-/* FIREBASE_URL comes from config.js. No SDK needed, plain REST calls. */
-const CONFIG_OK = typeof FIREBASE_URL === 'string' && FIREBASE_URL.startsWith('https://') && FIREBASE_URL.indexOf('GANTI-DENGAN') === -1;
+const CONFIG_OK = typeof FIREBASE_URL === 'string' && FIREBASE_URL.startsWith('https://') && FIREBASE_URL.indexOf('GANTI-DENGAN') === -1
+  && typeof FIREBASE_API_KEY === 'string' && FIREBASE_API_KEY.indexOf('GANTI-DENGAN') === -1;
+
+let state = {
+  screen: 'loading',   // loading | bootstrap | login | bank | player
+  auth: null,           // {idToken, uid}
+  me: null,             // player record {name, username, balance, role}
+  bank: null,
+  players: [],
+  paymentRequests: [],
+  txs: [],
+  tab: 'home',
+  modal: null,
+  scanner: null,
+  transferTarget: null, // {type:'bank'|'player'|'pay', id, name, amount?, label?}
+};
+
+function authQS(){ return state.auth ? `?auth=${state.auth.idToken}` : ''; }
 
 async function fbGet(path){
   if(!CONFIG_OK) return null;
   try{
-    const res = await fetch(`${FIREBASE_URL}/${path}.json`);
+    const res = await fetch(`${FIREBASE_URL}/${path}.json${authQS()}`);
     if(!res.ok) return null;
     return await res.json();
-  }catch(e){ console.error(e); return null; }
+  }catch(e){ return null; }
 }
 async function fbPut(path, value){
   if(!CONFIG_OK) return false;
   try{
-    await fetch(`${FIREBASE_URL}/${path}.json`, { method:'PUT', body: JSON.stringify(value) });
-    return true;
-  }catch(e){ console.error(e); return false; }
+    const res = await fetch(`${FIREBASE_URL}/${path}.json${authQS()}`, { method:'PUT', body: JSON.stringify(value) });
+    return res.ok;
+  }catch(e){ return false; }
 }
 async function fbPost(path, value){
   if(!CONFIG_OK) return null;
   try{
-    const res = await fetch(`${FIREBASE_URL}/${path}.json`, { method:'POST', body: JSON.stringify(value) });
+    const res = await fetch(`${FIREBASE_URL}/${path}.json${authQS()}`, { method:'POST', body: JSON.stringify(value) });
     return await res.json();
-  }catch(e){ console.error(e); return null; }
+  }catch(e){ return null; }
 }
-async function fbDelete(path){
+async function fbPatchRoot(obj){
   if(!CONFIG_OK) return false;
-  try{ await fetch(`${FIREBASE_URL}/${path}.json`, { method:'DELETE' }); return true; }catch(e){ return false; }
+  try{
+    const res = await fetch(`${FIREBASE_URL}/.json${authQS()}`, { method:'PATCH', body: JSON.stringify(obj) });
+    return res.ok;
+  }catch(e){ return false; }
 }
 
+/* ---------------- Firebase Auth (Identity Toolkit REST) ---------------- */
+function usernameToEmail(username){ return slugify(username) + '@ekopay.local'; }
+
+async function authSignUp(username, password){
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, {
+    method:'POST', body: JSON.stringify({ email: usernameToEmail(username), password, returnSecureToken:true })
+  });
+  return await res.json();
+}
+async function authSignIn(username, password){
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`, {
+    method:'POST', body: JSON.stringify({ email: usernameToEmail(username), password, returnSecureToken:true })
+  });
+  return await res.json();
+}
+function authErrorMsg(code){
+  const map = {
+    EMAIL_EXISTS: 'Username sudah dipakai, pilih yang lain.',
+    EMAIL_NOT_FOUND: 'Username tidak ditemukan.',
+    INVALID_PASSWORD: 'Password salah.',
+    INVALID_LOGIN_CREDENTIALS: 'Username atau password salah.',
+    WEAK_PASSWORD: 'Password minimal 6 karakter.',
+    INVALID_EMAIL: 'Username mengandung karakter yang tidak valid.',
+  };
+  return map[code] || ('Gagal: ' + code);
+}
+
+/* ---------------- data helpers ---------------- */
+async function getBankerUid(){ return await fbGet('meta/bankerUid'); }
 async function getBank(){ return await fbGet('bank'); }
 async function setBank(b){ await fbPut('bank', b); }
-
-async function getPlayer(id){ return await fbGet('players/'+id); }
-async function setPlayer(p){ await fbPut('players/'+p.id, p); }
-
+async function getPlayer(uid){ return await fbGet('players/'+uid); }
+async function setPlayer(uid, p){ await fbPut('players/'+uid, p); }
 async function listPlayers(){
   const obj = await fbGet('players');
   if(!obj) return [];
-  const arr = Object.values(obj);
+  const arr = Object.keys(obj).map(uid => ({ uid, ...obj[uid] }));
   arr.sort((a,b)=> a.name.localeCompare(b.name));
   return arr;
 }
-
 async function addTx(tx){ await fbPost('txs', tx); }
 async function listTx(){
   const obj = await fbGet('txs');
@@ -280,10 +338,18 @@ async function listTx(){
   arr.sort((a,b)=> b.time - a.time);
   return arr;
 }
+async function getPaymentRequest(id){ return await fbGet('paymentRequests/'+id); }
+async function listPaymentRequests(){
+  const obj = await fbGet('paymentRequests');
+  if(!obj) return [];
+  const arr = Object.keys(obj).map(id => ({ id, ...obj[id] }));
+  arr.sort((a,b)=> b.createdAt - a.createdAt);
+  return arr;
+}
 
 function slugify(name){
   let s = name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-+|-+$)/g,'');
-  if(!s) s = 'pemain';
+  if(!s) s = 'akun';
   return s;
 }
 function money(n){
@@ -294,48 +360,6 @@ function timeAgo(ts){
   const d = new Date(ts);
   return d.toLocaleString('id-ID', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
 }
-
-/* ---------------- state ---------------- */
-let state = {
-  view: 'role',        // role | bank-setup | bank | player-join | player
-  bank: null,
-  players: [],
-  txs: [],
-  me: null,             // {id,name,balance}
-  tab: 'home',
-  modal: null,
-  scanner: null,
-  transferTarget: null,
-};
-
-async function refreshData(){
-  if(state.modal) return; // don't disturb open modals (typing, camera, etc.)
-  if(state.transferTarget) return; // don't disturb the amount-entry screen on Transfer tab
-  if(state.view === 'bank'){
-    state.bank = await getBank();
-    state.players = await listPlayers();
-    state.txs = await listTx();
-    render();
-  } else if(state.view === 'player'){
-    const fresh = await getPlayer(state.me.id);
-    if(fresh) state.me = fresh;
-    state.players = await listPlayers();
-    state.txs = await listTx();
-    render();
-  }
-}
-
-// Refresh when the app/tab becomes visible again (e.g. user switches back from another app),
-// but never while someone is mid-typing in a modal or the transfer amount screen.
-document.addEventListener('visibilitychange', () => {
-  if(!document.hidden) refreshData();
-});
-
-async function manualRefresh(){
-  await refreshData();
-  toast('Data diperbarui', 'ok');
-}
-
 function toast(msg, kind){
   const t = document.createElement('div');
   t.className = 'toast' + (kind ? ' '+kind : '');
@@ -344,16 +368,79 @@ function toast(msg, kind){
   setTimeout(()=>{ t.remove(); }, 2400);
 }
 
+/* ---------------- boot ---------------- */
+async function boot(){
+  if(!CONFIG_OK){ state.screen = 'login'; render(); return; }
+  const bankerUid = await getBankerUid();
+  state.screen = bankerUid ? 'login' : 'bootstrap';
+  render();
+}
+
+/* ---------------- bootstrap (create first banker) ---------------- */
+async function submitBootstrap(){
+  const name = document.getElementById('bsName').value.trim();
+  const username = document.getElementById('bsUsername').value.trim();
+  const password = document.getElementById('bsPassword').value;
+  if(!name || !username || !password){ toast('Lengkapi semua kolom', 'err'); return; }
+  if(password.length < 6){ toast('Password minimal 6 karakter', 'err'); return; }
+  const su = await authSignUp(username, password);
+  if(su.error){ toast(authErrorMsg(su.error.message), 'err'); return; }
+  state.auth = { idToken: su.idToken, uid: su.localId };
+  const ok1 = await fbPut('meta/bankerUid', su.localId);
+  const player = { name, username: slugify(username), balance: 0, role: 'banker' };
+  await setPlayer(su.localId, player);
+  await setBank({ balance: 0 });
+  state.me = { uid: su.localId, ...player };
+  state.bank = { balance: 0 };
+  state.players = await listPlayers();
+  state.txs = [];
+  state.paymentRequests = [];
+  state.screen = 'bank';
+  state.tab = 'home';
+  toast('Akun bankir berhasil dibuat', 'ok');
+  render();
+}
+
+/* ---------------- login ---------------- */
+async function submitLogin(){
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if(!username || !password){ toast('Isi username dan password', 'err'); return; }
+  const si = await authSignIn(username, password);
+  if(si.error){ toast(authErrorMsg(si.error.message), 'err'); return; }
+  state.auth = { idToken: si.idToken, uid: si.localId };
+  const player = await getPlayer(si.localId);
+  if(!player){ toast('Akun tidak terdaftar di permainan ini', 'err'); state.auth = null; return; }
+  state.me = { uid: si.localId, ...player };
+  if(player.role === 'banker'){
+    state.bank = await getBank();
+    state.players = await listPlayers();
+    state.paymentRequests = await listPaymentRequests();
+    state.txs = await listTx();
+    state.screen = 'bank';
+  } else {
+    state.players = await listPlayers();
+    state.txs = await listTx();
+    state.screen = 'player';
+  }
+  state.tab = 'home';
+  render();
+}
+
+function logout(){
+  state = { screen:'login', auth:null, me:null, bank:null, players:[], paymentRequests:[], txs:[], tab:'home', modal:null, scanner:null, transferTarget:null };
+  render();
+}
+
 /* ---------------- render dispatcher ---------------- */
 function render(){
   document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-
   const app = document.getElementById('app');
-  if(state.view === 'role') app.innerHTML = viewRole();
-  else if(state.view === 'bank-setup') app.innerHTML = viewBankSetup();
-  else if(state.view === 'bank') app.innerHTML = viewBank();
-  else if(state.view === 'player-join') app.innerHTML = viewPlayerJoin();
-  else if(state.view === 'player') app.innerHTML = viewPlayer();
+  if(state.screen === 'loading') app.innerHTML = `<div class="content center-screen"><p class="spinner-note">Memuat…</p></div>`;
+  else if(state.screen === 'bootstrap') app.innerHTML = viewBootstrap();
+  else if(state.screen === 'login') app.innerHTML = viewLogin();
+  else if(state.screen === 'bank') app.innerHTML = viewBank();
+  else if(state.screen === 'player') app.innerHTML = viewPlayer();
 
   if(state.modal) renderModalInto();
   postRender();
@@ -363,97 +450,59 @@ function postRender(){
   document.querySelectorAll('[data-qr]').forEach(el=>{
     const content = el.getAttribute('data-qr');
     el.innerHTML = '';
-    try{
-      new QRCode(el, { text: content, width: 190, height: 190, colorDark:"#14302A", colorLight:"#ffffff" });
-    }catch(e){}
+    try{ new QRCode(el, { text: content, width: 190, height: 190, colorDark:"#14302A", colorLight:"#ffffff" }); }catch(e){}
   });
-  if(state.modal && state.modal.type === 'scan'){
-    startScanner();
-  }
+  if(state.modal && state.modal.type === 'scan') startScanner();
 }
 
-/* ---------------- ROLE SELECT ---------------- */
-function viewRole(){
+/* ---------------- BOOTSTRAP SCREEN ---------------- */
+function viewBootstrap(){
   const warning = !CONFIG_OK ? `
-    <div class="config-warning">
-      ⚠️ Belum terhubung ke database. Buka file <code>config.js</code> dan ganti <code>FIREBASE_URL</code> dengan Database URL dari Firebase kamu. Lihat README.md untuk caranya.
-    </div>` : '';
+    <div class="config-warning">⚠️ Belum terhubung ke database/auth. Lengkapi <code>config.js</code> dulu (FIREBASE_URL &amp; FIREBASE_API_KEY). Lihat README.md.</div>` : '';
+  return `
+  <div class="content center-screen">
+    ${warning}
+    <div class="stamp" style="position:static;transform:rotate(-8deg);width:64px;height:64px;margin-bottom:18px;color:var(--stamp-red);border-color:var(--stamp-red);">SAH<br>AWAL</div>
+    <h1 class="hero">Setup Awal</h1>
+    <p class="lede">Belum ada bankir terdaftar di permainan ini. Buat akun bankir pertama — akun ini yang nanti mendaftarkan semua pemain.</p>
+    <label class="field-label">Nama Bankir</label>
+    <input type="text" id="bsName" placeholder="contoh: Eko" autocomplete="off">
+    <label class="field-label">Username Login</label>
+    <input type="text" id="bsUsername" placeholder="contoh: eko" autocomplete="off">
+    <label class="field-label">Password</label>
+    <input type="text" id="bsPassword" placeholder="minimal 6 karakter">
+    <button class="btn btn-primary" onclick="submitBootstrap()">Buat Akun Bankir</button>
+  </div>`;
+}
+
+/* ---------------- LOGIN SCREEN ---------------- */
+function viewLogin(){
+  const warning = !CONFIG_OK ? `
+    <div class="config-warning">⚠️ Belum terhubung ke database/auth. Lengkapi <code>config.js</code> dulu. Lihat README.md.</div>` : '';
   return `
   <div class="content center-screen">
     ${warning}
     <div class="stamp" style="position:static;transform:rotate(-8deg);width:64px;height:64px;margin-bottom:18px;color:var(--stamp-red);border-color:var(--stamp-red);">SAH<br>MAIN</div>
     <h1 class="hero">Kas Meja</h1>
-    <p class="lede">Bank digital buat malam permainan. Bankir bagikan saldo, pemain transfer lewat scan QR — nggak perlu uang kertas.</p>
-
-    <div class="role-card" onclick="goRoleBank()">
-      <div class="role-emoji">🏦</div>
-      <div>
-        <p class="role-title">Saya Bankir</p>
-        <p class="role-desc">Buka kas, bagikan saldo, pantau semua transaksi</p>
-      </div>
-    </div>
-    <div class="role-card" onclick="goRolePlayer()">
-      <div class="role-emoji">👛</div>
-      <div>
-        <p class="role-title">Saya Pemain</p>
-        <p class="role-desc">Punya dompet sendiri, kirim &amp; terima lewat QR</p>
-      </div>
-    </div>
-    <p class="hint" style="margin-top:10px;">Semua orang yang membuka aplikasi ini (di HP masing-masing) akan berbagi kas &amp; saldo yang sama secara langsung.</p>
+    <p class="lede">Masuk dengan akun yang diberikan bankir. Belum punya akun? Minta bankir mendaftarkanmu dulu.</p>
+    <label class="field-label">Username</label>
+    <input type="text" id="loginUsername" placeholder="username kamu" autocomplete="off">
+    <label class="field-label">Password</label>
+    <input type="text" id="loginPassword" placeholder="password kamu">
+    <button class="btn btn-primary" onclick="submitLogin()">Masuk</button>
   </div>`;
 }
-
-async function goRoleBank(){
-  if(!CONFIG_OK){ toast('Hubungkan database dulu di config.js', 'err'); return; }
-  state.bank = await getBank();
-  state.view = state.bank ? 'bank' : 'bank-setup';
-  if(state.view === 'bank'){
-    state.players = await listPlayers();
-    state.txs = await listTx();
-  }
-  render();
-}
-function goRolePlayer(){
-  if(!CONFIG_OK){ toast('Hubungkan database dulu di config.js', 'err'); return; }
-  state.view = 'player-join';
-  render();
-}
-
-/* ---------------- BANK SETUP ---------------- */
-function viewBankSetup(){
-  return `
-  <div class="topbar">
-    <div class="brand">🏦 Buka Kas</div>
-    <p class="brand-sub">Tentukan dana awal yang akan kamu bagikan</p>
-  </div>
-  <div class="content">
-    <label class="field-label">Dana Awal Bank</label>
-    <input type="number" id="initBank" inputmode="numeric" placeholder="contoh: 1000000">
-    <p class="hint">Ini total saldo yang bisa kamu bagikan ke pemain. Bisa ditambah lagi nanti kapan saja.</p>
-    <button class="btn btn-primary" onclick="submitBankSetup()">Buka Kas</button>
-    <button class="btn btn-outline" style="margin-top:10px;" onclick="backToRole()">Kembali</button>
-  </div>`;
-}
-async function submitBankSetup(){
-  const val = parseInt(document.getElementById('initBank').value, 10);
-  if(!val || val <= 0){ toast('Masukkan jumlah dana yang valid', 'err'); return; }
-  state.bank = { balance: val };
-  await setBank(state.bank);
-  state.players = await listPlayers();
-  state.txs = await listTx();
-  state.view = 'bank';
-  render();
-}
-function backToRole(){ state.view = 'role'; render(); }
 
 /* ---------------- BANK DASHBOARD ---------------- */
 function viewBank(){
   const tab = state.tab;
   return `
   <div class="topbar">
+    <button class="logout-link" onclick="logout()">← Keluar</button>
     <div class="stamp">SAH<br>BANK</div>
-    <div class="brand">🏦 Kas Bankir</div>
-    <div class="balance-block" style="text-align:left;padding-top:10px;">
+    <div class="brand" style="margin-top:18px;">🏦 ${escapeHtml(state.me.name)}</div>
+    <span class="role-badge">Bankir</span>
+    <div class="balance-block" style="text-align:left;padding-top:2px;">
       <div class="balance-label">Saldo Bank</div>
       <div class="balance-num" style="font-size:2.1rem;">${money(state.bank ? state.bank.balance : 0)}</div>
     </div>
@@ -461,78 +510,118 @@ function viewBank(){
   <div class="content">
     ${tab === 'home' ? bankHomeTab() : ''}
     ${tab === 'players' ? bankPlayersTab() : ''}
+    ${tab === 'qr' ? bankQrTab() : ''}
     ${tab === 'history' ? historyTab(null) : ''}
   </div>
-  ${tabbar([
-    {id:'home', emoji:'⚙️', label:'Aksi'},
-    {id:'players', emoji:'👛', label:'Pemain'},
-    {id:'history', emoji:'🧾', label:'Riwayat'},
-  ], setBankTab)}
+  ${tabbarBank()}
   `;
 }
-function setBankTab(id){ state.tab = id; render(); refreshData(); }
+function tabbarBank(){
+  const tabs = [
+    {id:'home', emoji:'⚙️', label:'Aksi'},
+    {id:'players', emoji:'👛', label:'Pemain'},
+    {id:'qr', emoji:'🧾', label:'QR Bayar'},
+    {id:'history', emoji:'📜', label:'Riwayat'},
+  ];
+  return `<div class="tabbar">
+    ${tabs.map(t => `
+      <button class="tab-btn ${state.tab===t.id?'active':''}" onclick="setBankTab('${t.id}')">
+        <span class="tab-emoji">${t.emoji}</span>${t.label}
+      </button>`).join('')}
+  </div>`;
+}
+function setBankTab(id){ state.tab = id; render(); refreshBank(); }
+async function refreshBank(){
+  if(state.modal || state.transferTarget) return;
+  state.bank = await getBank();
+  state.players = await listPlayers();
+  state.paymentRequests = await listPaymentRequests();
+  state.txs = await listTx();
+  render();
+}
 
 function bankHomeTab(){
   return `
-  <button class="btn btn-outline" style="margin-bottom:16px;" onclick="manualRefresh()">🔄 Perbarui Data</button>
-  <div class="card">
-    <div class="section-title">QR Bank <small>terima dari pemain</small></div>
-    <div class="qr-box" data-qr="WG-BANK"></div>
-    <p class="hint" style="margin-bottom:0;">Pemain scan ini untuk mengembalikan saldo ke bank.</p>
-  </div>
-  <button class="btn btn-primary" onclick="openModal('addPlayer')">➕ Tambah Pemain Baru</button>
+  <button class="btn btn-outline" style="margin-bottom:16px;" onclick="manualRefreshBank()">🔄 Perbarui Data</button>
+  <button class="btn btn-primary" onclick="openModal('addPlayer')">➕ Tambah Akun Pemain</button>
   <button class="btn btn-outline" style="margin-top:10px;" onclick="openModal('fundBank')">💰 Tambah Dana ke Bank</button>
   <button class="btn btn-danger" style="margin-top:10px;" onclick="openModal('reset')">Reset Permainan</button>
   `;
 }
+async function manualRefreshBank(){ await refreshBank(); toast('Data diperbarui', 'ok'); }
+
 function bankPlayersTab(){
-  const rows = state.players.map(p => `
+  const rows = state.players.filter(p=>p.role!=='banker').map(p => `
     <div class="player-row">
       <div>
         <div class="player-name">${escapeHtml(p.name)}</div>
-        <div class="player-id">${p.id}</div>
+        <div class="player-id">@${p.username}</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
         <div class="player-bal">${money(p.balance)}</div>
-        <button class="btn btn-gold btn-sm" onclick="openModal('topup','${p.id}')">Isi</button>
+        <button class="btn btn-gold btn-sm" onclick="openModal('topup','${p.uid}')">Isi</button>
       </div>
     </div>`).join('');
   return `
   <div class="card">
-    <div class="section-title">Daftar Pemain <small>${state.players.length} orang</small></div>
+    <div class="section-title">Daftar Pemain <small>${state.players.filter(p=>p.role!=='banker').length} orang</small></div>
     ${rows || '<p class="empty-note">Belum ada pemain. Tambahkan lewat tab Aksi.</p>'}
   </div>`;
 }
 
+function bankQrTab(){
+  const rows = state.paymentRequests.map(r => `
+    <div class="player-row">
+      <div>
+        <div class="player-name">${escapeHtml(r.label || 'Tanpa label')}</div>
+        <div class="player-id">${timeAgo(r.createdAt)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="player-bal">${money(r.amount)}</div>
+        <button class="btn btn-outline btn-sm" onclick="showPayQr('${r.id}','${escapeHtml(r.label||'').replace(/'/g,"\\'")}',${r.amount})">QR</button>
+      </div>
+    </div>`).join('');
+  return `
+  <button class="btn btn-primary" style="margin-bottom:16px;" onclick="openModal('createPay')">➕ Buat QR Pembayaran Baru</button>
+  <div class="card">
+    <div class="section-title">QR Pembayaran <small>${state.paymentRequests.length} dibuat</small></div>
+    ${rows || '<p class="empty-note">Belum ada QR pembayaran.</p>'}
+  </div>`;
+}
+function showPayQr(id, label, amount){
+  state.modal = { type:'showPayQr', id, label, amount };
+  render();
+}
+
 async function submitAddPlayer(){
-  const nameEl = document.getElementById('newPlayerName');
-  const name = nameEl.value.trim();
-  if(!name){ toast('Masukkan nama pemain', 'err'); return; }
-  let id = slugify(name);
-  let existing = await getPlayer(id);
-  let i = 2;
-  while(existing){ id = slugify(name) + '-' + i; existing = await getPlayer(id); i++; }
-  const p = { id, name, balance: 0, createdAt: Date.now() };
-  await setPlayer(p);
-  toast('Pemain "'+name+'" ditambahkan', 'ok');
+  const name = document.getElementById('newPlayerName').value.trim();
+  const username = document.getElementById('newPlayerUsername').value.trim();
+  const password = document.getElementById('newPlayerPassword').value;
+  if(!name || !username || !password){ toast('Lengkapi semua kolom', 'err'); return; }
+  if(password.length < 6){ toast('Password minimal 6 karakter', 'err'); return; }
+  const su = await authSignUp(username, password);
+  if(su.error){ toast(authErrorMsg(su.error.message), 'err'); return; }
+  const p = { name, username: slugify(username), balance: 0, role: 'player' };
+  await setPlayer(su.localId, p);
+  toast('Akun "'+name+'" dibuat. Username: '+slugify(username), 'ok');
   closeModal();
   state.players = await listPlayers();
   render();
 }
 
 async function submitTopup(){
-  const id = state.modal.playerId;
+  const uid = state.modal.playerId;
   const amt = parseInt(document.getElementById('topupAmt').value, 10);
   if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
   const bank = await getBank();
   if(bank.balance < amt){ toast('Saldo bank tidak cukup', 'err'); return; }
-  const player = await getPlayer(id);
+  const player = await getPlayer(uid);
   if(!player){ toast('Pemain tidak ditemukan', 'err'); return; }
   bank.balance -= amt;
   player.balance += amt;
   await setBank(bank);
-  await setPlayer(player);
-  await addTx({ from:'BANK', fromName:'Bank', to:player.id, toName:player.name, amount:amt, time:Date.now() });
+  await setPlayer(uid, player);
+  await addTx({ from:'BANK', fromName:'Bank', to:uid, toName:player.name, amount:amt, time:Date.now(), type:'topup' });
   toast('Berhasil isi saldo '+player.name, 'ok');
   closeModal();
   state.bank = bank;
@@ -553,47 +642,26 @@ async function submitFundBank(){
   render();
 }
 
-async function submitReset(){
-  await fbDelete('players');
-  await fbDelete('txs');
-  await fbDelete('bank');
-  toast('Permainan direset', 'ok');
- 
-  state = { view:'role', bank:null, players:[], txs:[], me:null, tab:'home', modal:null, scanner:null, transferTarget:null };
+async function submitCreatePay(){
+  const amt = parseInt(document.getElementById('payAmt').value, 10);
+  const label = document.getElementById('payLabel').value.trim();
+  if(!amt || amt <= 0){ toast('Masukkan nominal yang valid', 'err'); return; }
+  const res = await fbPost('paymentRequests', { amount: amt, label, createdBy: state.me.uid, createdAt: Date.now(), active: true });
+  toast('QR pembayaran dibuat', 'ok');
+  closeModal();
+  state.paymentRequests = await listPaymentRequests();
   render();
+  if(res && res.name) showPayQr(res.name, label, amt);
 }
 
-/* ---------------- PLAYER JOIN ---------------- */
-function viewPlayerJoin(){
-  return `
-  <div class="topbar">
-    <div class="brand">👛 Dompet Saya</div>
-    <p class="brand-sub">Masuk atau buat dompet baru</p>
-  </div>
-  <div class="content">
-    <label class="field-label">Nama Kamu</label>
-    <input type="text" id="playerName" placeholder="contoh: Sinta" autocomplete="off">
-    <p class="hint">Kalau bankir sudah mendaftarkanmu, gunakan nama yang sama. Kalau belum, dompet baru akan langsung dibuat dengan saldo 0 — minta bankir untuk mengisi.</p>
-    <button class="btn btn-primary" onclick="submitPlayerJoin()">Masuk / Buat Dompet</button>
-    <button class="btn btn-outline" style="margin-top:10px;" onclick="backToRole()">Kembali</button>
-  </div>`;
-}
-async function submitPlayerJoin(){
-  const name = document.getElementById('playerName').value.trim();
-  if(!name){ toast('Masukkan nama kamu', 'err'); return; }
-  const id = slugify(name);
-  let p = await getPlayer(id);
-  if(!p){
-    p = { id, name, balance: 0, createdAt: Date.now() };
-    await setPlayer(p);
-    toast('Dompet baru dibuat untuk '+name, 'ok');
-  }
-  state.me = p;
-  state.players = await listPlayers();
-  state.txs = await listTx();
-  state.view = 'player';
-  state.tab = 'home';
-  render();
+async function submitReset(){
+  await fetch(`${FIREBASE_URL}/players.json${authQS()}`, { method:'DELETE' });
+  await fetch(`${FIREBASE_URL}/txs.json${authQS()}`, { method:'DELETE' });
+  await fetch(`${FIREBASE_URL}/paymentRequests.json${authQS()}`, { method:'DELETE' });
+  await fetch(`${FIREBASE_URL}/bank.json${authQS()}`, { method:'DELETE' });
+  await fetch(`${FIREBASE_URL}/meta.json${authQS()}`, { method:'DELETE' });
+  toast('Permainan direset. Silakan buat akun bankir baru.', 'ok');
+  logout();
 }
 
 /* ---------------- PLAYER DASHBOARD ---------------- */
@@ -601,9 +669,9 @@ function viewPlayer(){
   const tab = state.tab;
   return `
   <div class="topbar">
+    <button class="logout-link" onclick="logout()">← Keluar</button>
     <div class="stamp">SAH<br>MAIN</div>
-    <div class="brand">👛 Dompetku</div>
-    <div class="balance-block">
+    <div class="balance-block" style="padding-top:18px;">
       <div class="balance-label">Saldo</div>
       <div class="balance-num">${money(state.me.balance)}</div>
       <div class="owner-name">${escapeHtml(state.me.name)}</div>
@@ -612,23 +680,41 @@ function viewPlayer(){
   <div class="content">
     ${tab === 'home' ? playerHomeTab() : ''}
     ${tab === 'transfer' ? playerTransferTab() : ''}
-    ${tab === 'history' ? historyTab(state.me.id) : ''}
+    ${tab === 'history' ? historyTab(state.me.uid) : ''}
   </div>
-  ${tabbar([
+  ${tabbarPlayer()}
+  `;
+}
+function tabbarPlayer(){
+  const tabs = [
     {id:'home', emoji:'📇', label:'QR Saya'},
     {id:'transfer', emoji:'📤', label:'Transfer'},
     {id:'history', emoji:'🧾', label:'Riwayat'},
-  ], setPlayerTab)}
-  `;
+  ];
+  return `<div class="tabbar">
+    ${tabs.map(t => `
+      <button class="tab-btn ${state.tab===t.id?'active':''}" onclick="setPlayerTab('${t.id}')">
+        <span class="tab-emoji">${t.emoji}</span>${t.label}
+      </button>`).join('')}
+  </div>`;
 }
-function setPlayerTab(id){ state.tab = id; state.transferTarget = null; render(); refreshData(); }
+function setPlayerTab(id){ state.tab = id; state.transferTarget = null; render(); refreshPlayer(); }
+async function refreshPlayer(){
+  if(state.modal || state.transferTarget) return;
+  const fresh = await getPlayer(state.me.uid);
+  if(fresh) state.me = { uid: state.me.uid, ...fresh };
+  state.players = await listPlayers();
+  state.txs = await listTx();
+  render();
+}
+async function manualRefreshPlayer(){ await refreshPlayer(); toast('Saldo diperbarui', 'ok'); }
 
 function playerHomeTab(){
   return `
-  <button class="btn btn-outline" style="margin-bottom:16px;" onclick="manualRefresh()">🔄 Perbarui Saldo</button>
+  <button class="btn btn-outline" style="margin-bottom:16px;" onclick="manualRefreshPlayer()">🔄 Perbarui Saldo</button>
   <div class="card">
     <div class="section-title">QR Saya <small>tunjukkan untuk menerima</small></div>
-    <div class="qr-box" data-qr="WG-PLAYER:${state.me.id}"></div>
+    <div class="qr-box" data-qr="WG-PLAYER:${state.me.uid}"></div>
     <p class="hint" style="margin-bottom:0;">Pengirim tinggal scan QR ini untuk mengirim saldo ke kamu.</p>
   </div>`;
 }
@@ -636,6 +722,21 @@ function playerHomeTab(){
 function playerTransferTab(){
   if(state.transferTarget){
     const t = state.transferTarget;
+    if(t.type === 'pay'){
+      return `
+      <div class="card">
+        <div class="section-title">Konfirmasi Pembayaran</div>
+        <div class="amount-lock">
+          <div class="lbl">${escapeHtml(t.label || 'Bayar ke Bank')}</div>
+          <div class="num">${money(t.amount)}</div>
+        </div>
+        <p class="hint">Nominal ini ditentukan oleh bankir dan tidak bisa diubah.</p>
+        <div class="btn-row">
+          <button class="btn btn-outline" onclick="clearTransferTarget()">Batal</button>
+          <button class="btn btn-primary" onclick="submitPayment()">Bayar Sekarang</button>
+        </div>
+      </div>`;
+    }
     return `
     <div class="card">
       <div class="section-title">Kirim Saldo</div>
@@ -651,18 +752,18 @@ function playerTransferTab(){
       <button class="btn btn-primary" onclick="submitTransfer()">Kirim Sekarang</button>
     </div>`;
   }
-  const others = state.players.filter(p => p.id !== state.me.id);
+  const others = state.players.filter(p => p.uid !== state.me.uid && p.role !== 'banker');
   const list = others.map(p => `
-    <li class="link-item" onclick="pickTarget('player','${p.id}','${escapeHtml(p.name).replace(/'/g,"\\'")}')">
+    <li class="link-item" onclick="pickTarget('player','${p.uid}','${escapeHtml(p.name).replace(/'/g,"\\'")}')">
       <span>👛 ${escapeHtml(p.name)}</span>
       <span class="player-bal">${money(p.balance)}</span>
     </li>`).join('');
   return `
-  <button class="btn btn-outline" style="margin-bottom:16px;" onclick="manualRefresh()">🔄 Perbarui Daftar</button>
+  <button class="btn btn-outline" style="margin-bottom:16px;" onclick="manualRefreshPlayer()">🔄 Perbarui Daftar</button>
   <div class="card">
-    <div class="section-title">Pindai QR Tujuan</div>
+    <div class="section-title">Pindai QR</div>
     <button class="btn btn-gold" onclick="openModal('scan')">📷 Buka Kamera</button>
-    <p class="hint" style="margin-top:10px;">Kalau kamera tidak bisa diakses, pilih tujuan manual di bawah.</p>
+    <p class="hint" style="margin-top:10px;">Bisa untuk scan QR pemain lain, QR bank, atau QR pembayaran dari bankir. Kalau kamera tidak bisa diakses, pilih tujuan manual di bawah.</p>
   </div>
   <div class="card">
     <div class="section-title">Atau Pilih Manual</div>
@@ -677,20 +778,17 @@ function playerTransferTab(){
   </div>`;
 }
 
-function pickTarget(type, id, name){
-  state.transferTarget = { type, id, name };
-  render();
-}
+function pickTarget(type, id, name){ state.transferTarget = { type, id, name }; render(); }
 function clearTransferTarget(){ state.transferTarget = null; render(); }
 
 async function submitTransfer(){
   const amt = parseInt(document.getElementById('sendAmt').value, 10);
   if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
-  const me = await getPlayer(state.me.id);
+  const me = await getPlayer(state.me.uid);
   if(me.balance < amt){ toast('Saldo kamu tidak cukup', 'err'); return; }
   const t = state.transferTarget;
   me.balance -= amt;
-  await setPlayer(me);
+  await setPlayer(state.me.uid, me);
   let toName = 'Bank';
   if(t.type === 'bank'){
     const bank = await getBank();
@@ -698,14 +796,14 @@ async function submitTransfer(){
     await setBank(bank);
   } else {
     const target = await getPlayer(t.id);
-    if(!target){ toast('Penerima tidak ditemukan', 'err'); me.balance += amt; await setPlayer(me); return; }
+    if(!target){ toast('Penerima tidak ditemukan', 'err'); me.balance += amt; await setPlayer(state.me.uid, me); return; }
     target.balance += amt;
-    await setPlayer(target);
+    await setPlayer(t.id, target);
     toName = target.name;
   }
-  await addTx({ from: me.id, fromName: me.name, to: t.type==='bank' ? 'BANK' : t.id, toName, amount: amt, time: Date.now() });
+  await addTx({ from: state.me.uid, fromName: me.name, to: t.type==='bank' ? 'BANK' : t.id, toName, amount: amt, time: Date.now(), type:'transfer' });
   toast('Berhasil kirim ke '+toName, 'ok');
-  state.me = me;
+  state.me = { uid: state.me.uid, ...me };
   state.transferTarget = null;
   state.players = await listPlayers();
   state.bank = await getBank();
@@ -713,17 +811,39 @@ async function submitTransfer(){
   render();
 }
 
-/* ---------------- shared: history + tabbar + modal ---------------- */
-function historyTab(filterId){
+async function submitPayment(){
+  const t = state.transferTarget;
+  const fresh = await getPaymentRequest(t.payId);
+  if(!fresh){ toast('QR pembayaran tidak berlaku lagi', 'err'); state.transferTarget = null; render(); return; }
+  const amt = fresh.amount;
+  const me = await getPlayer(state.me.uid);
+  if(me.balance < amt){ toast('Saldo kamu tidak cukup', 'err'); return; }
+  me.balance -= amt;
+  await setPlayer(state.me.uid, me);
+  const bank = await getBank();
+  bank.balance += amt;
+  await setBank(bank);
+  await addTx({ from: state.me.uid, fromName: me.name, to: 'BANK', toName: 'Bank', amount: amt, time: Date.now(), type:'payment', label: fresh.label || '' });
+  toast('Pembayaran berhasil: '+money(amt), 'ok');
+  state.me = { uid: state.me.uid, ...me };
+  state.transferTarget = null;
+  state.bank = bank;
+  state.txs = await listTx();
+  render();
+}
+
+/* ---------------- shared: history + modal ---------------- */
+function historyTab(filterUid){
   let txs = state.txs;
-  if(filterId) txs = txs.filter(t => t.from === filterId || t.to === filterId);
+  if(filterUid) txs = txs.filter(t => t.from === filterUid || t.to === filterUid);
   const rows = txs.slice(0, 60).map(t => {
-    const isOut = filterId && t.from === filterId;
-    const sign = filterId ? (isOut ? 'minus' : 'plus') : '';
-    const prefix = filterId ? (isOut ? '-' : '+') : '';
-    const desc = filterId
-      ? (isOut ? `Ke <b>${escapeHtml(t.toName)}</b>` : `Dari <b>${escapeHtml(t.fromName)}</b>`)
-      : `<b>${escapeHtml(t.fromName)}</b> → <b>${escapeHtml(t.toName)}</b>`;
+    const isOut = filterUid && t.from === filterUid;
+    const sign = filterUid ? (isOut ? 'minus' : 'plus') : '';
+    const prefix = filterUid ? (isOut ? '-' : '+') : '';
+    const label = t.type === 'payment' && t.label ? ` (${escapeHtml(t.label)})` : '';
+    const desc = filterUid
+      ? (isOut ? `Ke <b>${escapeHtml(t.toName)}</b>${label}` : `Dari <b>${escapeHtml(t.fromName)}</b>${label}`)
+      : `<b>${escapeHtml(t.fromName)}</b> → <b>${escapeHtml(t.toName)}</b>${label}`;
     return `
     <div class="tx-row">
       <div>
@@ -736,37 +856,25 @@ function historyTab(filterId){
   return `<div class="card"><div class="section-title">Riwayat Transaksi</div>${rows || '<p class="empty-note">Belum ada transaksi.</p>'}</div>`;
 }
 
-function tabbar(tabs, handler){
-  const name = handler === setBankTab ? 'setBankTab' : 'setPlayerTab';
-  return `<div class="tabbar">
-    ${tabs.map(t => `
-      <button class="tab-btn ${state.tab===t.id?'active':''}" onclick="${name}('${t.id}')">
-        <span class="tab-emoji">${t.emoji}</span>${t.label}
-      </button>`).join('')}
-  </div>`;
-}
+function openModal(type, playerId){ state.modal = { type, playerId }; render(); }
+function closeModal(){ stopScanner(); state.modal = null; render(); }
 
-function openModal(type, playerId){
-  state.modal = { type, playerId };
-  render();
-}
-function closeModal(){
-  stopScanner();
-  state.modal = null;
-  render();
-}
 function renderModalInto(){
   const m = state.modal;
   let inner = '';
   if(m.type === 'addPlayer'){
     inner = `
-      <div class="modal-title">Tambah Pemain</div>
-      <p class="modal-sub">Pemain baru dimulai dengan saldo 0.</p>
+      <div class="modal-title">Tambah Akun Pemain</div>
+      <p class="modal-sub">Akun ini bisa langsung dipakai pemain untuk login.</p>
       <label class="field-label">Nama</label>
       <input type="text" id="newPlayerName" placeholder="contoh: Budi" autocomplete="off">
-      <button class="btn btn-primary" onclick="submitAddPlayer()">Tambahkan</button>`;
+      <label class="field-label">Username Login</label>
+      <input type="text" id="newPlayerUsername" placeholder="contoh: budi" autocomplete="off">
+      <label class="field-label">Password</label>
+      <input type="text" id="newPlayerPassword" placeholder="minimal 6 karakter">
+      <button class="btn btn-primary" onclick="submitAddPlayer()">Buat Akun</button>`;
   } else if(m.type === 'topup'){
-    const p = state.players.find(x => x.id === m.playerId);
+    const p = state.players.find(x => x.uid === m.playerId);
     inner = `
       <div class="modal-title">Isi Saldo ${p ? escapeHtml(p.name) : ''}</div>
       <p class="modal-sub">Saldo saat ini: ${money(p ? p.balance : 0)}</p>
@@ -780,10 +888,25 @@ function renderModalInto(){
       <label class="field-label">Jumlah</label>
       <input type="number" id="fundAmt" inputmode="numeric" placeholder="contoh: 500000">
       <button class="btn btn-primary" onclick="submitFundBank()">Tambahkan</button>`;
+  } else if(m.type === 'createPay'){
+    inner = `
+      <div class="modal-title">Buat QR Pembayaran</div>
+      <p class="modal-sub">Nominal ini akan terkunci saat pemain scan.</p>
+      <label class="field-label">Nominal</label>
+      <input type="number" id="payAmt" inputmode="numeric" placeholder="contoh: 25000">
+      <label class="field-label">Label (opsional)</label>
+      <input type="text" id="payLabel" placeholder="contoh: Beli tanah petak 5">
+      <button class="btn btn-primary" onclick="submitCreatePay()">Buat QR</button>`;
+  } else if(m.type === 'showPayQr'){
+    inner = `
+      <div class="modal-title">${escapeHtml(m.label || 'QR Pembayaran')}</div>
+      <p class="modal-sub">Nominal: ${money(m.amount)}</p>
+      <div class="qr-box" data-qr="WG-PAY:${m.id}"></div>
+      <p class="hint" style="margin-bottom:0;">Tunjukkan ke pemain untuk di-scan.</p>`;
   } else if(m.type === 'reset'){
     inner = `
       <div class="modal-title">Reset Permainan?</div>
-      <p class="modal-sub">Semua pemain, saldo, dan riwayat transaksi akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.</p>
+      <p class="modal-sub">Semua akun, saldo, QR pembayaran, dan riwayat akan dihapus permanen — termasuk akun bankir ini. Kamu perlu setup ulang dari awal.</p>
       <button class="btn btn-danger" onclick="submitReset()">Ya, Reset Semua</button>`;
   } else if(m.type === 'scan'){
     inner = `
@@ -795,10 +918,7 @@ function renderModalInto(){
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.id = 'modalOverlay';
-  overlay.innerHTML = `<div class="modal-card" style="position:relative;">
-      <button class="modal-close" onclick="closeModal()">✕</button>
-      ${inner}
-    </div>`;
+  overlay.innerHTML = `<div class="modal-card" style="position:relative;"><button class="modal-close" onclick="closeModal()">✕</button>${inner}</div>`;
   overlay.addEventListener('click', (e)=>{ if(e.target.id === 'modalOverlay') closeModal(); });
   document.getElementById('shell').appendChild(overlay);
 }
@@ -816,9 +936,7 @@ function startScanner(){
       (decodedText) => { handleScanResult(decodedText); },
       () => {}
     ).then(()=>{ if(hint) hint.textContent = 'Arahkan kamera ke QR tujuan.'; })
-    .catch((err)=>{
-      if(hint) hint.textContent = 'Kamera tidak bisa diakses. Tutup jendela ini dan pilih tujuan secara manual dari daftar.';
-    });
+    .catch(()=>{ if(hint) hint.textContent = 'Kamera tidak bisa diakses. Tutup jendela ini dan pilih tujuan secara manual dari daftar.'; });
   }catch(e){
     if(hint) hint.textContent = 'Kamera tidak tersedia. Pilih tujuan secara manual dari daftar.';
   }
@@ -831,22 +949,25 @@ function stopScanner(){
 }
 async function handleScanResult(text){
   stopScanner();
-  if(text === 'WG-BANK'){
-    state.modal = null;
-    pickTarget('bank', null, 'Bank');
+  state.modal = null;
+  if(text === 'WG-BANK'){ pickTarget('bank', null, 'Bank'); return; }
+  if(text && text.indexOf('WG-PLAYER:') === 0){
+    const uid = text.replace('WG-PLAYER:', '');
+    if(uid === state.me.uid){ toast('Tidak bisa kirim ke diri sendiri', 'err'); render(); return; }
+    const p = await getPlayer(uid);
+    if(!p){ toast('Pemain tidak ditemukan', 'err'); render(); return; }
+    pickTarget('player', uid, p.name);
     return;
   }
-  if(text && text.indexOf('WG-PLAYER:') === 0){
-    const id = text.replace('WG-PLAYER:', '');
-    if(id === state.me.id){ toast('Tidak bisa kirim ke diri sendiri', 'err'); state.modal = null; render(); return; }
-    const p = await getPlayer(id);
-    if(!p){ toast('Pemain tidak ditemukan', 'err'); state.modal = null; render(); return; }
-    state.modal = null;
-    pickTarget('player', p.id, p.name);
+  if(text && text.indexOf('WG-PAY:') === 0){
+    const id = text.replace('WG-PAY:', '');
+    const req = await getPaymentRequest(id);
+    if(!req){ toast('QR pembayaran tidak ditemukan', 'err'); render(); return; }
+    state.transferTarget = { type:'pay', payId:id, amount:req.amount, label:req.label };
+    render();
     return;
   }
   toast('QR tidak dikenali', 'err');
-  state.modal = null;
   render();
 }
 
@@ -854,8 +975,14 @@ function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 }
 
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden) return;
+  if(state.screen === 'bank') refreshBank();
+  else if(state.screen === 'player') refreshPlayer();
+});
+
 /* ---------------- init ---------------- */
-render();
+boot();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {

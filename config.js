@@ -2,3 +2,4 @@
 // Contoh: "https://kas-meja-default-rtdb.asia-southeast1.firebasedatabase.app"
 // Lihat README.md untuk cara mendapatkannya (gratis, ±3 menit).
 const FIREBASE_URL = "https://eko-pay-d0f3c-default-rtdb.asia-southeast1.firebasedatabase.app";
+const FIREBASE_API_KEY = "AIzaSyBCZrf9ruEy0lgorINOlfHchv62C4Etsgk"
