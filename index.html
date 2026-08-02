@@ -317,6 +317,7 @@ function stopPolling(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null;
 
 async function refreshData(){
   if(state.modal) return; // don't disturb open modals (typing, camera, etc.)
+  if(state.transferTarget) return; // don't disturb the amount-entry screen on Transfer tab
   if(state.view === 'bank'){
     state.bank = await getBank();
     state.players = await listPlayers();
