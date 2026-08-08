@@ -656,8 +656,8 @@ async function submitTopup(){
   const uid = state.modal.playerId;
   const amt = parseInt(document.getElementById('topupAmt').value, 10);
   if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
-  const bank = await getBank();
-  if(!bank){ toast('Gagal mengambil data bank, coba lagi', 'err'); return; }
+  let bank = await getBank();
+  if(!bank) bank = { balance: 0 };
   if(bank.balance < amt){ toast('Saldo bank tidak cukup', 'err'); return; }
   const player = await getPlayer(uid);
   if(!player){ toast('Pemain tidak ditemukan', 'err'); return; }
@@ -678,8 +678,8 @@ async function submitTopup(){
 async function submitFundBank(){
   const amt = parseInt(document.getElementById('fundAmt').value, 10);
   if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
-  const bank = await getBank();
-  if(!bank){ toast('Gagal mengambil data bank, coba lagi', 'err'); return; }
+  let bank = await getBank();
+  if(!bank) bank = { balance: 0 };
   bank.balance += amt;
   const ok = await setBank(bank);
   if(!ok) return;
@@ -840,8 +840,8 @@ async function submitTransfer(){
   if(!ok1) return;
   let toName = 'Bank';
   if(t.type === 'bank'){
-    const bank = await getBank();
-    if(!bank){ toast('Gagal mengambil data bank, coba lagi', 'err'); return; }
+    let bank = await getBank();
+    if(!bank) bank = { balance: 0 };
     bank.balance += amt;
     await setBank(bank);
   } else {
@@ -873,14 +873,14 @@ async function submitPayment(){
   const ok1 = await setPlayer(state.me.uid, me);
   if(!ok1) return;
   const bank = await getBank();
-  if(!bank){ toast('Gagal mengambil data bank, coba lagi', 'err'); return; }
-  bank.balance += amt;
-  await setBank(bank);
+  const bankObj = bank || { balance: 0 };
+  bankObj.balance += amt;
+  await setBank(bankObj);
   await addTx({ from: state.me.uid, fromName: me.name, to: 'BANK', toName: 'Bank', amount: amt, time: Date.now(), type:'payment', label: fresh.label || '' });
   toast('Pembayaran berhasil: '+money(amt), 'ok');
   state.me = { uid: state.me.uid, ...me };
   state.transferTarget = null;
-  state.bank = bank;
+  state.bank = bankObj;
   state.txs = await listTx();
   render();
 }
