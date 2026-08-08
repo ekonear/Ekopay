@@ -260,10 +260,19 @@ let state = {
 
 function authQS(){ return state.auth ? `?auth=${state.auth.idToken}` : ''; }
 
+let sessionExpiredShown = false;
+function handleAuthError(){
+  if(sessionExpiredShown) return;
+  sessionExpiredShown = true;
+  toast('Sesi login habis, silakan masuk lagi', 'err');
+  setTimeout(()=>{ logout(); sessionExpiredShown = false; }, 1200);
+}
+
 async function fbGet(path){
   if(!CONFIG_OK) return null;
   try{
     const res = await fetch(`${FIREBASE_URL}/${path}.json${authQS()}`);
+    if(res.status === 401){ handleAuthError(); return null; }
     if(!res.ok) return null;
     return await res.json();
   }catch(e){ return null; }
@@ -272,15 +281,19 @@ async function fbPut(path, value){
   if(!CONFIG_OK) return false;
   try{
     const res = await fetch(`${FIREBASE_URL}/${path}.json${authQS()}`, { method:'PUT', body: JSON.stringify(value) });
-    return res.ok;
-  }catch(e){ return false; }
+    if(res.status === 401){ handleAuthError(); return false; }
+    if(!res.ok){ const err = await res.json().catch(()=>null); toast('Gagal menyimpan: ' + (err && err.error ? err.error : 'akses ditolak'), 'err'); return false; }
+    return true;
+  }catch(e){ toast('Gagal menyimpan (koneksi bermasalah)', 'err'); return false; }
 }
 async function fbPost(path, value){
   if(!CONFIG_OK) return null;
   try{
     const res = await fetch(`${FIREBASE_URL}/${path}.json${authQS()}`, { method:'POST', body: JSON.stringify(value) });
+    if(res.status === 401){ handleAuthError(); return null; }
+    if(!res.ok){ const err = await res.json().catch(()=>null); toast('Gagal menyimpan: ' + (err && err.error ? err.error : 'akses ditolak'), 'err'); return null; }
     return await res.json();
-  }catch(e){ return null; }
+  }catch(e){ toast('Gagal menyimpan (koneksi bermasalah)', 'err'); return null; }
 }
 async function fbPatchRoot(obj){
   if(!CONFIG_OK) return false;
@@ -551,20 +564,21 @@ function bankHomeTab(){
 async function manualRefreshBank(){ await refreshBank(); toast('Data diperbarui', 'ok'); }
 
 function bankPlayersTab(){
-  const rows = state.players.filter(p=>p.role!=='banker').map(p => `
+  const rows = state.players.filter(p=>p.role==='player').map(p => `
     <div class="player-row">
       <div>
         <div class="player-name">${escapeHtml(p.name)}</div>
         <div class="player-id">@${p.username}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;">
+      <div style="display:flex;align-items:center;gap:8px;">
         <div class="player-bal">${money(p.balance)}</div>
         <button class="btn btn-gold btn-sm" onclick="openModal('topup','${p.uid}')">Isi</button>
+        <button class="btn btn-outline btn-sm" onclick="openModal('resetPassword','${p.uid}')">🔑</button>
       </div>
     </div>`).join('');
   return `
   <div class="card">
-    <div class="section-title">Daftar Pemain <small>${state.players.filter(p=>p.role!=='banker').length} orang</small></div>
+    <div class="section-title">Daftar Pemain <small>${state.players.filter(p=>p.role==='player').length} orang</small></div>
     ${rows || '<p class="empty-note">Belum ada pemain. Tambahkan lewat tab Aksi.</p>'}
   </div>`;
 }
@@ -593,6 +607,31 @@ function showPayQr(id, label, amount){
   render();
 }
 
+async function submitResetPassword(){
+  const oldUid = state.modal.playerId;
+  const oldPlayer = state.players.find(p => p.uid === oldUid);
+  const newUsername = document.getElementById('rpUsername').value.trim();
+  const newPassword = document.getElementById('rpPassword').value;
+  if(!newUsername || !newPassword){ toast('Lengkapi semua kolom', 'err'); return; }
+  if(newPassword.length < 6){ toast('Password minimal 6 karakter', 'err'); return; }
+  const su = await authSignUp(newUsername, newPassword);
+  if(su.error){ toast(authErrorMsg(su.error.message), 'err'); return; }
+  const freshOld = await getPlayer(oldUid);
+  const movedBalance = freshOld ? freshOld.balance : 0;
+  const newPlayer = { name: oldPlayer.name, username: slugify(newUsername), balance: movedBalance, role: 'player' };
+  const ok1 = await setPlayer(su.localId, newPlayer);
+  if(!ok1) return;
+  const oldPlayerUpdated = { ...freshOld, balance: 0, role: 'inactive', migratedTo: su.localId };
+  await setPlayer(oldUid, oldPlayerUpdated);
+  if(movedBalance > 0){
+    await addTx({ from: oldUid, fromName: oldPlayer.name, to: su.localId, toName: newPlayer.name, amount: movedBalance, time: Date.now(), type:'password-reset' });
+  }
+  toast('Akun baru dibuat, saldo dipindahkan. Username baru: '+slugify(newUsername), 'ok');
+  closeModal();
+  state.players = await listPlayers();
+  render();
+}
+
 async function submitAddPlayer(){
   const name = document.getElementById('newPlayerName').value.trim();
   const username = document.getElementById('newPlayerUsername').value.trim();
@@ -614,13 +653,15 @@ async function submitTopup(){
   const amt = parseInt(document.getElementById('topupAmt').value, 10);
   if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
   const bank = await getBank();
+  if(!bank){ toast('Gagal mengambil data bank, coba lagi', 'err'); return; }
   if(bank.balance < amt){ toast('Saldo bank tidak cukup', 'err'); return; }
   const player = await getPlayer(uid);
   if(!player){ toast('Pemain tidak ditemukan', 'err'); return; }
   bank.balance -= amt;
   player.balance += amt;
-  await setBank(bank);
-  await setPlayer(uid, player);
+  const ok1 = await setBank(bank);
+  const ok2 = await setPlayer(uid, player);
+  if(!ok1 || !ok2) return;
   await addTx({ from:'BANK', fromName:'Bank', to:uid, toName:player.name, amount:amt, time:Date.now(), type:'topup' });
   toast('Berhasil isi saldo '+player.name, 'ok');
   closeModal();
@@ -634,8 +675,10 @@ async function submitFundBank(){
   const amt = parseInt(document.getElementById('fundAmt').value, 10);
   if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
   const bank = await getBank();
+  if(!bank){ toast('Gagal mengambil data bank, coba lagi', 'err'); return; }
   bank.balance += amt;
-  await setBank(bank);
+  const ok = await setBank(bank);
+  if(!ok) return;
   toast('Dana bank ditambahkan', 'ok');
   closeModal();
   state.bank = bank;
@@ -752,7 +795,7 @@ function playerTransferTab(){
       <button class="btn btn-primary" onclick="submitTransfer()">Kirim Sekarang</button>
     </div>`;
   }
-  const others = state.players.filter(p => p.uid !== state.me.uid && p.role !== 'banker');
+  const others = state.players.filter(p => p.uid !== state.me.uid && p.role === 'player');
   const list = others.map(p => `
     <li class="link-item" onclick="pickTarget('player','${p.uid}','${escapeHtml(p.name).replace(/'/g,"\\'")}')">
       <span>👛 ${escapeHtml(p.name)}</span>
@@ -785,13 +828,16 @@ async function submitTransfer(){
   const amt = parseInt(document.getElementById('sendAmt').value, 10);
   if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
   const me = await getPlayer(state.me.uid);
+  if(!me){ toast('Gagal mengambil data akunmu, coba lagi', 'err'); return; }
   if(me.balance < amt){ toast('Saldo kamu tidak cukup', 'err'); return; }
   const t = state.transferTarget;
   me.balance -= amt;
-  await setPlayer(state.me.uid, me);
+  const ok1 = await setPlayer(state.me.uid, me);
+  if(!ok1) return;
   let toName = 'Bank';
   if(t.type === 'bank'){
     const bank = await getBank();
+    if(!bank){ toast('Gagal mengambil data bank, coba lagi', 'err'); return; }
     bank.balance += amt;
     await setBank(bank);
   } else {
@@ -817,10 +863,13 @@ async function submitPayment(){
   if(!fresh){ toast('QR pembayaran tidak berlaku lagi', 'err'); state.transferTarget = null; render(); return; }
   const amt = fresh.amount;
   const me = await getPlayer(state.me.uid);
+  if(!me){ toast('Gagal mengambil data akunmu, coba lagi', 'err'); return; }
   if(me.balance < amt){ toast('Saldo kamu tidak cukup', 'err'); return; }
   me.balance -= amt;
-  await setPlayer(state.me.uid, me);
+  const ok1 = await setPlayer(state.me.uid, me);
+  if(!ok1) return;
   const bank = await getBank();
+  if(!bank){ toast('Gagal mengambil data bank, coba lagi', 'err'); return; }
   bank.balance += amt;
   await setBank(bank);
   await addTx({ from: state.me.uid, fromName: me.name, to: 'BANK', toName: 'Bank', amount: amt, time: Date.now(), type:'payment', label: fresh.label || '' });
@@ -903,6 +952,16 @@ function renderModalInto(){
       <p class="modal-sub">Nominal: ${money(m.amount)}</p>
       <div class="qr-box" data-qr="WG-PAY:${m.id}"></div>
       <p class="hint" style="margin-bottom:0;">Tunjukkan ke pemain untuk di-scan.</p>`;
+  } else if(m.type === 'resetPassword'){
+    const p = state.players.find(x => x.uid === m.playerId);
+    inner = `
+      <div class="modal-title">Reset Password ${p ? escapeHtml(p.name) : ''}</div>
+      <p class="modal-sub">Akun lama (@${p ? p.username : ''}) akan dinonaktifkan dan tidak bisa dipakai login lagi. Akun baru dibuat dengan saldo yang sama (${money(p ? p.balance : 0)}), dan nama tetap sama — cukup beri tahu pemain username &amp; password barunya.</p>
+      <label class="field-label">Username Baru</label>
+      <input type="text" id="rpUsername" placeholder="contoh: budi2" autocomplete="off">
+      <label class="field-label">Password Baru</label>
+      <input type="text" id="rpPassword" placeholder="minimal 6 karakter">
+      <button class="btn btn-primary" onclick="submitResetPassword()">Buat Akun Baru &amp; Pindahkan Saldo</button>`;
   } else if(m.type === 'reset'){
     inner = `
       <div class="modal-title">Reset Permainan?</div>
