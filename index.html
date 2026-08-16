@@ -235,6 +235,7 @@ function render(){
   if(state.view === 'role') app.innerHTML = viewRole();
   else if(state.view === 'bank-setup') app.innerHTML = viewBankSetup();
   else if(state.view === 'bank-login') app.innerHTML = viewBankLogin();
+  else if(state.view === 'bank-setup-auth') app.innerHTML = viewBankSetupAuth();
   else if(state.view === 'bank') app.innerHTML = viewBank();
   else if(state.view === 'player-join') app.innerHTML = viewPlayerJoin();
   else if(state.view === 'player') app.innerHTML = viewPlayer();
@@ -273,7 +274,12 @@ function viewRole(){
 async function goRoleBank(){
   if(!CONFIG_OK){ toast('Hubungkan database dulu di config.js', 'err'); return; }
   state.bank = await getBank();
-  state.view = state.bank ? 'bank-login' : 'bank-setup';
+  if(!state.bank){
+    state.view = 'bank-setup';
+  } else {
+    const auth = await getBankAuth();
+    state.view = auth ? 'bank-login' : 'bank-setup-auth';
+  }
   render();
 }
 function goRolePlayer(){
@@ -311,6 +317,36 @@ async function submitBankSetup(){
   const ok1 = await setBank(state.bank);
   const ok2 = await setBankAuth({ username: user, passwordHash });
   if(!ok1 || !ok2) return;
+  state.players = await listPlayers();
+  state.paymentRequests = await listPaymentRequests();
+  state.txs = await listTx();
+  state.view = 'bank';
+  render();
+}
+
+/* ---------------- BANK SETUP AUTH (kas lama, belum punya akun bankir) ---------------- */
+function viewBankSetupAuth(){
+  return `
+  <div class="topbar"><div class="brand">🏦 Atur Akun Bankir</div><p class="brand-sub">Kas sudah ada, tapi akun login bankir belum dibuat</p></div>
+  <div class="content">
+    <p class="hint" style="margin-top:0;">Ini terjadi karena kas dibuat sebelum fitur login ada. Buat username &amp; password sekarang, data kas/pemain/riwayat yang sudah ada tidak akan berubah.</p>
+    <label class="field-label">Username Bankir</label>
+    <input type="text" id="authUser" placeholder="contoh: bankir1" autocomplete="off">
+    <label class="field-label">Password Bankir</label>
+    <input type="password" id="authPass" placeholder="minimal 4 karakter" autocomplete="new-password">
+    <button class="btn btn-primary" onclick="submitBankSetupAuth()">Simpan &amp; Masuk</button>
+    <button class="btn btn-outline" style="margin-top:10px;" onclick="backToRole()">Kembali</button>
+  </div>`;
+}
+async function submitBankSetupAuth(){
+  const user = document.getElementById('authUser').value.trim();
+  const pass = document.getElementById('authPass').value;
+  if(!user){ toast('Masukkan username bankir', 'err'); return; }
+  if(!pass || pass.length < 4){ toast('Password minimal 4 karakter', 'err'); return; }
+  const passwordHash = await sha256(pass);
+  const ok = await setBankAuth({ username: user, passwordHash });
+  if(!ok) return;
+  toast('Akun bankir berhasil dibuat', 'ok');
   state.players = await listPlayers();
   state.paymentRequests = await listPaymentRequests();
   state.txs = await listTx();
