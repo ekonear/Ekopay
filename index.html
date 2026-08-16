@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>EKOPAY — Bank Permainan</title>
+<meta name="description" content="Bank digital untuk malam permainan — bankir bagikan saldo, pemain transfer lewat scan QR.">
+<meta name="theme-color" content="#14302A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="EKOPAY">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="./config.js"></script>
+<style>
+  :root{
+    --ink: #14302A;
+    --ink-dk: #0C201B;
+    --paper: #EDE3C8;
+    --paper-lt: #F6F0DC;
+    --gold: #C9A227;
+    --stamp-red: #A63D40;
+    --leaf: #3F7D5C;
+    --text: #1B2620;
+    --muted: rgba(27,38,32,0.58);
+    --line: rgba(27,38,32,0.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--ink-dk);
+    background-image: radial-gradient(circle at 20% 0%, rgba(201,162,39,0.10), transparent 45%);
+    min-height:100vh;
+    font-family:'Inter', sans-serif;
+    color:var(--text);
+    display:flex;
+    justify-content:center;
+  }
+  .shell{
+    width:100%;
+    max-width:440px;
+    min-height:100vh;
+    background:var(--paper);
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    box-shadow:0 0 60px rgba(0,0,0,0.4);
+  }
+  .topbar{
+    background:var(--ink);
+    color:var(--paper-lt);
+    padding:22px 20px 26px;
+    position:relative;
+    overflow:hidden;
+  }
+  .topbar::after{
+    content:"";
+    position:absolute; left:0; right:0; bottom:-1px; height:14px;
+    background-image: radial-gradient(circle at 10px 0, transparent 9px, var(--ink) 9.5px);
+    background-size: 20px 14px;
+    background-repeat:repeat-x;
+  }
+  .stamp{
+    position:absolute; top:16px; right:18px;
+    width:56px;height:56px;border-radius:50%;
+    border:2px dashed var(--gold);
+    display:flex;align-items:center;justify-content:center;
+    transform:rotate(-10deg);
+    font-family:'Fraunces',serif; font-weight:700; font-size:10px; letter-spacing:1px;
+    color:var(--gold);
+    text-align:center;
+    line-height:1.1;
+  }
+  .brand{
+    font-family:'Fraunces',serif; font-weight:600; font-size:1.5rem; margin:0 0 2px;
+  }
+  .brand-sub{
+    font-size:0.78rem; color:rgba(246,240,220,0.65); margin:0;
+  }
+  .content{
+    flex:1;
+    padding:24px 20px 100px;
+    position:relative;
+  }
+  .center-screen{
+    display:flex; flex-direction:column; justify-content:center; min-height:calc(100vh - 20px);
+  }
+  h1.hero{
+    font-family:'Fraunces',serif; font-weight:600; font-size:2rem; line-height:1.1; margin:0 0 8px;
+    color:var(--ink);
+  }
+  .lede{ color:var(--muted); font-size:0.95rem; margin:0 0 28px; line-height:1.5;}
+  .role-card{
+    display:flex; align-items:center; gap:14px;
+    background:var(--paper-lt);
+    border:1.5px solid var(--line);
+    border-radius:14px;
+    padding:18px;
+    margin-bottom:14px;
+    cursor:pointer;
+    transition:transform .15s ease, border-color .15s ease;
+  }
+  .role-card:active{ transform:scale(0.98); }
+  .role-card:hover{ border-color:var(--gold); }
+  .role-emoji{ font-size:1.8rem; }
+  .role-title{ font-weight:700; font-size:1.02rem; margin:0 0 2px;}
+  .role-desc{ font-size:0.82rem; color:var(--muted); margin:0;}
+
+  label.field-label{ display:block; font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:6px;}
+  input[type=text], input[type=number]{
+    width:100%; padding:13px 14px; border-radius:10px; border:1.5px solid var(--line);
+    background:var(--paper-lt); font-family:'Inter',sans-serif; font-size:1rem; color:var(--text);
+    margin-bottom:16px;
+  }
+  input:focus{ outline:none; border-color:var(--gold); }
+  .btn{
+    display:block; width:100%; text-align:center;
+    padding:14px; border-radius:11px; border:none;
+    font-family:'Inter',sans-serif; font-weight:700; font-size:0.95rem;
+    cursor:pointer;
+  }
+  .btn-primary{ background:var(--ink); color:var(--paper-lt); }
+  .btn-primary:active{ background:var(--ink-dk); }
+  .btn-gold{ background:var(--gold); color:var(--ink-dk); }
+  .btn-outline{ background:transparent; color:var(--ink); border:1.5px solid var(--ink); }
+  .btn-danger{ background:transparent; color:var(--stamp-red); border:1.5px solid var(--stamp-red); }
+  .btn-sm{ padding:8px 14px; font-size:0.82rem; width:auto; border-radius:8px; }
+  .btn-row{ display:flex; gap:10px; margin-top:6px; }
+  .btn-row .btn{ flex:1; }
+
+  .balance-block{ text-align:center; padding:6px 0 4px; }
+  .balance-label{ font-size:0.78rem; text-transform:uppercase; letter-spacing:0.08em; color:rgba(246,240,220,0.6); margin-bottom:6px;}
+  .balance-num{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:2.5rem; color:var(--gold); letter-spacing:-0.5px;}
+  .owner-name{ font-family:'Fraunces',serif; font-size:1.15rem; margin:2px 0 0; color:var(--paper-lt);}
+
+  .card{ background:var(--paper-lt); border:1.5px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .section-title{ font-family:'Fraunces',serif; font-weight:600; font-size:1.1rem; margin:0 0 14px; display:flex; align-items:center; justify-content:space-between;}
+  .section-title small{ font-family:'Inter'; font-weight:600; font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em;}
+
+  .player-row{ display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px dashed var(--line); }
+  .player-row:last-child{ border-bottom:none; }
+  .player-name{ font-weight:600; font-size:0.95rem; }
+  .player-id{ font-size:0.72rem; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+  .player-bal{ font-family:'JetBrains Mono',monospace; font-weight:600; font-size:0.95rem; }
+
+  .tx-row{ display:flex; justify-content:space-between; align-items:flex-start; padding:11px 0; border-bottom:1px dashed var(--line); gap:10px;}
+  .tx-row:last-child{ border-bottom:none; }
+  .tx-desc{ font-size:0.86rem; }
+  .tx-desc b{ font-weight:700; }
+  .tx-time{ font-size:0.72rem; color:var(--muted); margin-top:2px; }
+  .tx-amt{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem; white-space:nowrap;}
+  .tx-amt.plus{ color:var(--leaf); }
+  .tx-amt.minus{ color:var(--stamp-red); }
+
+  .empty-note{ color:var(--muted); font-size:0.85rem; text-align:center; padding:20px 10px; }
+
+  .tabbar{
+    position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width:440px;
+    background:var(--ink);
+    display:flex;
+    padding:10px 10px calc(10px + env(safe-area-inset-bottom));
+    z-index:20;
+  }
+  .tab-btn{
+    flex:1; background:none; border:none; color:rgba(246,240,220,0.55);
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    font-family:'Inter'; font-size:0.68rem; font-weight:600; letter-spacing:0.02em;
+    padding:6px 0; cursor:pointer; border-radius:8px;
+  }
+  .tab-btn.active{ color:var(--gold); }
+  .tab-emoji{ font-size:1.2rem; }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(12,32,27,0.62);
+    display:flex; align-items:flex-end; justify-content:center; z-index:50;
+  }
+  .modal-card{
+    background:var(--paper-lt); width:100%; max-width:440px;
+    border-radius:20px 20px 0 0; padding:24px 20px calc(24px + env(safe-area-inset-bottom));
+    animation:slideUp .18s ease-out;
+  }
+  @keyframes slideUp{ from{transform:translateY(24px); opacity:0;} to{transform:translateY(0); opacity:1;} }
+  .modal-title{ font-family:'Fraunces',serif; font-weight:600; font-size:1.2rem; margin:0 0 4px;}
+  .modal-sub{ font-size:0.82rem; color:var(--muted); margin:0 0 18px; }
+  .modal-close{ position:absolute; top:16px; right:18px; background:none; border:none; font-size:1.3rem; color:var(--muted); cursor:pointer;}
+
+  .qr-box{ background:white; border-radius:14px; padding:16px; display:flex; justify-content:center; margin-bottom:14px; }
+  #reader{ width:100%; border-radius:12px; overflow:hidden; margin-bottom:14px; }
+  .target-pill{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--paper); border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:16px;
+  }
+  .link-list{ list-style:none; padding:0; margin:0; }
+  .link-item{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:11px 4px; border-bottom:1px dashed var(--line); cursor:pointer;
+  }
+  .link-item:last-child{border-bottom:none;}
+  .link-item:active{ background:rgba(201,162,39,0.1); }
+  .toast{
+    position:fixed; top:18px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--paper-lt); padding:12px 18px; border-radius:10px;
+    font-size:0.85rem; font-weight:600; z-index:100; box-shadow:0 6px 20px rgba(0,0,0,0.3);
+    max-width:88%; text-align:center;
+  }
+  .toast.err{ background:var(--stamp-red); }
+  .toast.ok{ background:var(--leaf); }
+  .hint{ font-size:0.76rem; color:var(--muted); margin-top:-6px; margin-bottom:14px; line-height:1.4;}
+  .id-tag{ font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--muted); word-break:break-all; }
+  .config-warning{
+    background:var(--stamp-red); color:#fff; padding:14px 16px; border-radius:12px;
+    font-size:0.82rem; line-height:1.5; margin-bottom:18px;
+  }
+  .config-warning code{ background:rgba(255,255,255,0.18); padding:1px 5px; border-radius:4px; }
+  .role-badge{
+    display:inline-block; font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;
+    padding:3px 9px; border-radius:20px; background:rgba(201,162,39,0.18); color:var(--gold); margin-bottom:10px;
+  }
+  .amount-lock{
+    text-align:center; padding:22px 10px; background:var(--paper); border-radius:12px; margin-bottom:16px;
+  }
+  .amount-lock .lbl{ font-size:0.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px; }
+  .amount-lock .num{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:2rem; color:var(--ink); }
+  .logout-link{
+    background:none; border:none; color:rgba(246,240,220,0.6); font-size:0.76rem; font-weight:600;
+    position:absolute; top:20px; left:20px; cursor:pointer; padding:4px;
+  }
+  .spinner-note{ text-align:center; color:var(--muted); font-size:0.85rem; padding:40px 10px; }
+</style>
+<body>
+<div class="shell" id="shell">
+  <div id="app"></div>
+</div>
+
+<script>
+/* ---------------- Firebase Realtime Database REST helpers ---------------- */
+const CONFIG_OK = typeof FIREBASE_URL === 'string' && FIREBASE_URL.startsWith('https://') && FIREBASE_URL.indexOf('GANTI-DENGAN') === -1
+  && typeof FIREBASE_API_KEY === 'string' && FIREBASE_API_KEY.indexOf('GANTI-DENGAN') === -1;
+
+let state = {
+  screen: 'loading',   // loading | bootstrap | login | bank | player
+  auth: null,           // {idToken, uid}
+  me: null,             // player record {name, username, balance, role}
+  bank: null,
+  players: [],
+  paymentRequests: [],
+  txs: [],
+  tab: 'home',
+  modal: null,
+  scanner: null,
+  transferTarget: null, // {type:'bank'|'player'|'pay', id, name, amount?, label?}
+};
+
+function authQS(){ return state.auth ? `?auth=${state.auth.idToken}` : ''; }
+
+let sessionExpiredShown = false;
+function handleAuthError(){
+  if(sessionExpiredShown) return;
+  sessionExpiredShown = true;
+  toast('Sesi login habis, silakan masuk lagi', 'err');
+  setTimeout(()=>{ logout(); sessionExpiredShown = false; }, 1200);
+}
+
+async function fbGet(path){
+  if(!CONFIG_OK) return null;
+  try{
+    const res = await fetch(`${FIREBASE_URL}/${path}.json${authQS()}`);
+    if(res.status === 401){ handleAuthError(); return null; }
+    if(!res.ok){
+      const body = await res.text().catch(()=> '');
+      console.error('fbGet gagal:', path, res.status, body);
+      return null;
+    }
+    return await res.json();
+  }catch(e){ console.error('fbGet exception:', path, e); return null; }
+}
+async function fbPut(path, value){
+  if(!CONFIG_OK) return false;
+  try{
+    const res = await fetch(`${FIREBASE_URL}/${path}.json${authQS()}`, { method:'PUT', body: JSON.stringify(value) });
+    if(res.status === 401){ handleAuthError(); return false; }
+    if(!res.ok){ const err = await res.text().catch(()=>''); console.error('fbPut gagal:', path, res.status, err); toast('Gagal menyimpan (status '+res.status+')', 'err'); return false; }
+    return true;
+  }catch(e){ console.error('fbPut exception:', path, e); toast('Gagal menyimpan (koneksi bermasalah)', 'err'); return false; }
+}
+async function fbPost(path, value){
+  if(!CONFIG_OK) return null;
+  try{
+    const res = await fetch(`${FIREBASE_URL}/${path}.json${authQS()}`, { method:'POST', body: JSON.stringify(value) });
+    if(res.status === 401){ handleAuthError(); return null; }
+    if(!res.ok){ const err = await res.text().catch(()=>''); console.error('fbPost gagal:', path, res.status, err); toast('Gagal menyimpan (status '+res.status+')', 'err'); return null; }
+    return await res.json();
+  }catch(e){ console.error('fbPost exception:', path, e); toast('Gagal menyimpan (koneksi bermasalah)', 'err'); return null; }
+}
+async function fbPatchRoot(obj){
+  if(!CONFIG_OK) return false;
+  try{
+    const res = await fetch(`${FIREBASE_URL}/.json${authQS()}`, { method:'PATCH', body: JSON.stringify(obj) });
+    return res.ok;
+  }catch(e){ return false; }
+}
+async function fbDelete(path){
+  if(!CONFIG_OK) return false;
+  try{
+    const res = await fetch(`${FIREBASE_URL}/${path}.json${authQS()}`, { method:'DELETE' });
+    if(res.status === 401){ handleAuthError(); return false; }
+    if(!res.ok){ const err = await res.text().catch(()=>''); console.error('fbDelete gagal:', path, res.status, err); toast('Gagal menghapus (status '+res.status+')', 'err'); return false; }
+    return true;
+  }catch(e){ console.error('fbDelete exception:', path, e); toast('Gagal menghapus (koneksi bermasalah)', 'err'); return false; }
+}
+
+/* ---------------- Firebase Auth (Identity Toolkit REST) ---------------- */
+function usernameToEmail(username){ return slugify(username) + '@ekopay.local'; }
+
+async function authSignUp(username, password){
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, {
+    method:'POST', body: JSON.stringify({ email: usernameToEmail(username), password, returnSecureToken:true })
+  });
+  return await res.json();
+}
+async function authSignIn(username, password){
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`, {
+    method:'POST', body: JSON.stringify({ email: usernameToEmail(username), password, returnSecureToken:true })
+  });
+  return await res.json();
+}
+function authErrorMsg(code){
+  const map = {
+    EMAIL_EXISTS: 'Username sudah dipakai, pilih yang lain.',
+    EMAIL_NOT_FOUND: 'Username tidak ditemukan.',
+    INVALID_PASSWORD: 'Password salah.',
+    INVALID_LOGIN_CREDENTIALS: 'Username atau password salah.',
+    WEAK_PASSWORD: 'Password minimal 6 karakter.',
+    INVALID_EMAIL: 'Username mengandung karakter yang tidak valid.',
+  };
+  return map[code] || ('Gagal: ' + code);
+}
+
+/* ---------------- data helpers ---------------- */
+async function getBankerUid(){ return await fbGet('meta/bankerUid'); }
+async function getBank(){ return await fbGet('bank'); }
+async function setBank(b){ await fbPut('bank', b); }
+async function getPlayer(uid){ return await fbGet('players/'+uid); }
+async function setPlayer(uid, p){ await fbPut('players/'+uid, p); }
+async function listPlayers(){
+  const obj = await fbGet('players');
+  if(!obj) return [];
+  const arr = Object.keys(obj).map(uid => ({ uid, ...obj[uid] }));
+  arr.sort((a,b)=> a.name.localeCompare(b.name));
+  return arr;
+}
+async function addTx(tx){ const res = await fbPost('txs', tx); return !!res; }
+async function listTx(){
+  const obj = await fbGet('txs');
+  if(!obj) return [];
+  const arr = Object.keys(obj).map(id => ({ id, ...obj[id] }));
+  arr.sort((a,b)=> b.time - a.time);
+  return arr;
+}
+async function getPaymentRequest(id){ return await fbGet('paymentRequests/'+id); }
+async function listPaymentRequests(){
+  const obj = await fbGet('paymentRequests');
+  if(!obj) return [];
+  const arr = Object.keys(obj).map(id => ({ id, ...obj[id] }));
+  arr.sort((a,b)=> b.createdAt - a.createdAt);
+  return arr;
+}
+
+function slugify(name){
+  let s = name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-+|-+$)/g,'');
+  if(!s) s = 'akun';
+  return s;
+}
+function money(n){
+  n = Math.round(Number(n)||0);
+  return 'Rp ' + n.toLocaleString('id-ID');
+}
+function timeAgo(ts){
+  const d = new Date(ts);
+  return d.toLocaleString('id-ID', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
+}
+function toast(msg, kind){
+  const t = document.createElement('div');
+  t.className = 'toast' + (kind ? ' '+kind : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>{ t.remove(); }, 2400);
+}
+
+/* ---------------- boot ---------------- */
+async function boot(){
+  if(!CONFIG_OK){ state.screen = 'login'; render(); return; }
+  const bankerUid = await getBankerUid();
+  state.screen = bankerUid ? 'login' : 'bootstrap';
+  render();
+}
+
+/* ---------------- bootstrap (create first banker) ---------------- */
+async function submitBootstrap(){
+  const name = document.getElementById('bsName').value.trim();
+  const username = document.getElementById('bsUsername').value.trim();
+  const password = document.getElementById('bsPassword').value;
+  if(!name || !username || !password){ toast('Lengkapi semua kolom', 'err'); return; }
+  if(password.length < 6){ toast('Password minimal 6 karakter', 'err'); return; }
+  const su = await authSignUp(username, password);
+  if(su.error){ toast(authErrorMsg(su.error.message), 'err'); return; }
+  state.auth = { idToken: su.idToken, uid: su.localId };
+  const ok1 = await fbPut('meta/bankerUid', su.localId);
+  const player = { name, username: slugify(username), balance: 0, role: 'banker' };
+  await setPlayer(su.localId, player);
+  await setBank({ balance: 0 });
+  state.me = { uid: su.localId, ...player };
+  state.bank = { balance: 0 };
+  state.players = await listPlayers();
+  state.txs = [];
+  state.paymentRequests = [];
+  state.screen = 'bank';
+  state.tab = 'home';
+  toast('Akun bankir berhasil dibuat', 'ok');
+  render();
+}
+
+/* ---------------- login ---------------- */
+async function submitLogin(){
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if(!username || !password){ toast('Isi username dan password', 'err'); return; }
+  const si = await authSignIn(username, password);
+  if(si.error){ toast(authErrorMsg(si.error.message), 'err'); return; }
+  state.auth = { idToken: si.idToken, uid: si.localId };
+  const player = await getPlayer(si.localId);
+  if(!player){ toast('Akun tidak terdaftar di permainan ini', 'err'); state.auth = null; return; }
+  state.me = { uid: si.localId, ...player };
+  if(player.role === 'banker'){
+    state.bank = await getBank();
+    state.players = await listPlayers();
+    state.paymentRequests = await listPaymentRequests();
+    state.txs = await listTx();
+    state.screen = 'bank';
+  } else {
+    state.players = await listPlayers();
+    state.txs = await listTx();
+    state.screen = 'player';
+  }
+  state.tab = 'home';
+  render();
+}
+
+function logout(){
+  state = { screen:'login', auth:null, me:null, bank:null, players:[], paymentRequests:[], txs:[], tab:'home', modal:null, scanner:null, transferTarget:null };
+  render();
+}
+
+/* ---------------- render dispatcher ---------------- */
+function render(){
+  document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+  const app = document.getElementById('app');
+  if(state.screen === 'loading') app.innerHTML = `<div class="content center-screen"><p class="spinner-note">Memuat…</p></div>`;
+  else if(state.screen === 'bootstrap') app.innerHTML = viewBootstrap();
+  else if(state.screen === 'login') app.innerHTML = viewLogin();
+  else if(state.screen === 'bank') app.innerHTML = viewBank();
+  else if(state.screen === 'player') app.innerHTML = viewPlayer();
+
+  if(state.modal) renderModalInto();
+  postRender();
+}
+
+function postRender(){
+  document.querySelectorAll('[data-qr]').forEach(el=>{
+    const content = el.getAttribute('data-qr');
+    el.innerHTML = '';
+    try{ new QRCode(el, { text: content, width: 190, height: 190, colorDark:"#14302A", colorLight:"#ffffff" }); }catch(e){}
+  });
+  if(state.modal && state.modal.type === 'scan') startScanner();
+}
+
+/* ---------------- BOOTSTRAP SCREEN ---------------- */
+function viewBootstrap(){
+  const warning = !CONFIG_OK ? `
+    <div class="config-warning">⚠️ Belum terhubung ke database/auth. Lengkapi <code>config.js</code> dulu (FIREBASE_URL &amp; FIREBASE_API_KEY). Lihat README.md.</div>` : '';
+  return `
+  <div class="content center-screen">
+    ${warning}
+    <div class="stamp" style="position:static;transform:rotate(-8deg);width:64px;height:64px;margin-bottom:18px;color:var(--stamp-red);border-color:var(--stamp-red);">SAH<br>AWAL</div>
+    <h1 class="hero">Setup Awal</h1>
+    <p class="lede">Belum ada bankir terdaftar di permainan ini. Buat akun bankir pertama — akun ini yang nanti mendaftarkan semua pemain.</p>
+    <label class="field-label">Nama Bankir</label>
+    <input type="text" id="bsName" placeholder="contoh: Eko" autocomplete="off">
+    <label class="field-label">Username Login</label>
+    <input type="text" id="bsUsername" placeholder="contoh: eko" autocomplete="off">
+    <label class="field-label">Password</label>
+    <input type="password" id="bsPassword" placeholder="minimal 6 karakter">
+    <button class="btn btn-primary" onclick="submitBootstrap()">Buat Akun Bankir</button>
+  </div>`;
+}
+
+/* ---------------- LOGIN SCREEN ---------------- */
+function viewLogin(){
+  const warning = !CONFIG_OK ? `
+    <div class="config-warning">⚠️ Belum terhubung ke database/auth. Lengkapi <code>config.js</code> dulu. Lihat README.md.</div>` : '';
+  return `
+  <div class="content center-screen">
+    ${warning}
+    <div class="stamp" style="position:static;transform:rotate(-8deg);width:64px;height:64px;margin-bottom:18px;color:var(--stamp-red);border-color:var(--stamp-red);">SAH<br>MAIN</div>
+    <h1 class="hero">EKOPAY</h1>
+    <p class="lede">Masuk dengan akun yang diberikan bankir. Belum punya akun? Minta bankir mendaftarkanmu dulu.</p>
+    <label class="field-label">Username</label>
+    <input type="text" id="loginUsername" placeholder="username kamu" autocomplete="off">
+    <label class="field-label">Password</label>
+    <input type="password" id="loginPassword" placeholder="password kamu">
+    <button class="btn btn-primary" onclick="submitLogin()">Masuk</button>
+  </div>`;
+}
+
+/* ---------------- BANK DASHBOARD ---------------- */
+function viewBank(){
+  const tab = state.tab;
+  return `
+  <div class="topbar">
+    <button class="logout-link" onclick="logout()">← Keluar</button>
+    <div class="stamp">SAH<br>BANK</div>
+    <div class="brand" style="margin-top:18px;">🏦 ${escapeHtml(state.me.name)}</div>
+    <span class="role-badge">Bankir</span>
+    <div class="balance-block" style="text-align:left;padding-top:2px;">
+      <div class="balance-label">Saldo Bank</div>
+      <div class="balance-num" style="font-size:2.1rem;">${money(state.bank ? state.bank.balance : 0)}</div>
+    </div>
+  </div>
+  <div class="content">
+    ${tab === 'home' ? bankHomeTab() : ''}
+    ${tab === 'players' ? bankPlayersTab() : ''}
+    ${tab === 'qr' ? bankQrTab() : ''}
+    ${tab === 'history' ? historyTab(null) : ''}
+  </div>
+  ${tabbarBank()}
+  `;
+}
+function tabbarBank(){
+  const tabs = [
+    {id:'home', emoji:'⚙️', label:'Aksi'},
+    {id:'players', emoji:'👛', label:'Pemain'},
+    {id:'qr', emoji:'🧾', label:'QR Bayar'},
+    {id:'history', emoji:'📜', label:'Riwayat'},
+  ];
+  return `<div class="tabbar">
+    ${tabs.map(t => `
+      <button class="tab-btn ${state.tab===t.id?'active':''}" onclick="setBankTab('${t.id}')">
+        <span class="tab-emoji">${t.emoji}</span>${t.label}
+      </button>`).join('')}
+  </div>`;
+}
+function setBankTab(id){ state.tab = id; render(); refreshBank(); }
+async function refreshBank(){
+  if(state.modal || state.transferTarget) return;
+  state.bank = await getBank();
+  state.players = await listPlayers();
+  state.paymentRequests = await listPaymentRequests();
+  state.txs = await listTx();
+  render();
+}
+
+function bankHomeTab(){
+  return `
+  <button class="btn btn-outline" style="margin-bottom:16px;" onclick="manualRefreshBank()">🔄 Perbarui Data</button>
+  <button class="btn btn-primary" onclick="openModal('addPlayer')">➕ Tambah Akun Pemain</button>
+  <button class="btn btn-outline" style="margin-top:10px;" onclick="openModal('fundBank')">💰 Tambah Dana ke Bank</button>
+  <button class="btn btn-danger" style="margin-top:10px;" onclick="openModal('reset')">Reset Permainan</button>
+  `;
+}
+async function manualRefreshBank(){ await refreshBank(); toast('Data diperbarui', 'ok'); }
+
+function bankPlayersTab(){
+  const rows = state.players.filter(p=>p.role==='player').map(p => `
+    <div class="player-row">
+      <div>
+        <div class="player-name">${escapeHtml(p.name)}</div>
+        <div class="player-id">@${p.username}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="player-bal">${money(p.balance)}</div>
+        <button class="btn btn-gold btn-sm" onclick="openModal('topup','${p.uid}')">Isi</button>
+        <button class="btn btn-outline btn-sm" onclick="openModal('resetPassword','${p.uid}')">🔑</button>
+        <button class="btn btn-danger btn-sm" onclick="openModal('deletePlayer','${p.uid}')">🗑️</button>
+      </div>
+    </div>`).join('');
+  return `
+  <div class="card">
+    <div class="section-title">Daftar Pemain <small>${state.players.filter(p=>p.role==='player').length} orang</small></div>
+    ${rows || '<p class="empty-note">Belum ada pemain. Tambahkan lewat tab Aksi.</p>'}
+  </div>`;
+}
+
+function bankQrTab(){
+  const rows = state.paymentRequests.map(r => `
+    <div class="player-row">
+      <div>
+        <div class="player-name">${escapeHtml(r.label || 'Tanpa label')}</div>
+        <div class="player-id">${timeAgo(r.createdAt)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="player-bal">${money(r.amount)}</div>
+        <button class="btn btn-outline btn-sm" onclick="showPayQr('${r.id}','${escapeHtml(r.label||'').replace(/'/g,"\\'")}',${r.amount})">QR</button>
+        <button class="btn btn-danger btn-sm" onclick="openModal('deletePayQr','${r.id}')">🗑️</button>
+      </div>
+    </div>`).join('');
+  return `
+  <button class="btn btn-primary" style="margin-bottom:16px;" onclick="openModal('createPay')">➕ Buat QR Pembayaran Baru</button>
+  <div class="card">
+    <div class="section-title">QR Pembayaran <small>${state.paymentRequests.length} dibuat</small></div>
+    ${rows || '<p class="empty-note">Belum ada QR pembayaran.</p>'}
+  </div>`;
+}
+function showPayQr(id, label, amount){
+  state.modal = { type:'showPayQr', id, label, amount };
+  render();
+}
+
+async function submitDeletePlayer(){
+  const uid = state.modal.playerId;
+  const p = state.players.find(x => x.uid === uid);
+  if(!p){ toast('Pemain tidak ditemukan', 'err'); return; }
+  if(p.balance > 0){
+    let bank = await getBank();
+    if(!bank) bank = { balance: 0 };
+    bank.balance += p.balance;
+    await setBank(bank);
+    await addTx({ from: uid, fromName: p.name, to:'BANK', toName:'Bank', amount: p.balance, time: Date.now(), type:'account-deleted' });
+    state.bank = bank;
+  }
+  await fbDelete('players/'+uid);
+  toast('Akun '+p.name+' dihapus', 'ok');
+  state.players = await listPlayers();
+  state.modal = { type:'deletePlayer', success:true, name: p.name };
+  render();
+  setTimeout(()=>{ closeModal(); }, 1400);
+}
+
+async function submitDeletePayQr(){
+  const id = state.modal.playerId;
+  await fbDelete('paymentRequests/'+id);
+  toast('QR pembayaran dihapus', 'ok');
+  state.paymentRequests = await listPaymentRequests();
+  closeModal();
+  render();
+}
+
+async function submitDeleteTx(){
+  const id = state.modal.playerId;
+  await fbDelete('txs/'+id);
+  toast('Riwayat transaksi dihapus', 'ok');
+  state.txs = await listTx();
+  closeModal();
+  render();
+}
+
+async function submitResetPassword(){
+  const oldUid = state.modal.playerId;
+  const oldPlayer = state.players.find(p => p.uid === oldUid);
+  const newUsername = document.getElementById('rpUsername').value.trim();
+  const newPassword = document.getElementById('rpPassword').value;
+  if(!newUsername || !newPassword){ toast('Lengkapi semua kolom', 'err'); return; }
+  if(newPassword.length < 6){ toast('Password minimal 6 karakter', 'err'); return; }
+  const su = await authSignUp(newUsername, newPassword);
+  if(su.error){ toast(authErrorMsg(su.error.message), 'err'); return; }
+  const freshOld = await getPlayer(oldUid);
+  const movedBalance = freshOld ? freshOld.balance : 0;
+  const newPlayer = { name: oldPlayer.name, username: slugify(newUsername), balance: movedBalance, role: 'player' };
+  const ok1 = await setPlayer(su.localId, newPlayer);
+  if(!ok1) return;
+  const oldPlayerUpdated = { ...freshOld, balance: 0, role: 'inactive', migratedTo: su.localId };
+  await setPlayer(oldUid, oldPlayerUpdated);
+  if(movedBalance > 0){
+    await addTx({ from: oldUid, fromName: oldPlayer.name, to: su.localId, toName: newPlayer.name, amount: movedBalance, time: Date.now(), type:'password-reset' });
+  }
+  toast('Akun baru dibuat, saldo dipindahkan', 'ok');
+  state.players = await listPlayers();
+  state.modal = { type:'resetPassword', success:true, name: oldPlayer.name, username: slugify(newUsername) };
+  render();
+  setTimeout(()=>{ closeModal(); }, 1800);
+}
+
+async function submitAddPlayer(){
+  const name = document.getElementById('newPlayerName').value.trim();
+  const username = document.getElementById('newPlayerUsername').value.trim();
+  const password = document.getElementById('newPlayerPassword').value;
+  if(!name || !username || !password){ toast('Lengkapi semua kolom', 'err'); return; }
+  if(password.length < 6){ toast('Password minimal 6 karakter', 'err'); return; }
+  const su = await authSignUp(username, password);
+  if(su.error){ toast(authErrorMsg(su.error.message), 'err'); return; }
+  const p = { name, username: slugify(username), balance: 0, role: 'player' };
+  const ok = await setPlayer(su.localId, p);
+  if(!ok) return;
+  toast('Akun "'+name+'" dibuat', 'ok');
+  state.players = await listPlayers();
+  state.modal = { type:'addPlayer', success:true, name, username: slugify(username) };
+  render();
+  setTimeout(()=>{ closeModal(); }, 1800);
+}
+
+async function submitTopup(){
+  const uid = state.modal.playerId;
+  const amt = parseInt(document.getElementById('topupAmt').value, 10);
+  if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
+  let bank = await getBank();
+  if(!bank) bank = { balance: 0 };
+  if(bank.balance < amt){ toast('Saldo bank tidak cukup', 'err'); return; }
+  const player = await getPlayer(uid);
+  if(!player){ toast('Pemain tidak ditemukan', 'err'); return; }
+  bank.balance -= amt;
+  player.balance += amt;
+  const ok1 = await setBank(bank);
+  const ok2 = await setPlayer(uid, player);
+  if(!ok1 || !ok2) return;
+  const txOk = await addTx({ from:'BANK', fromName:'Bank', to:uid, toName:player.name, amount:amt, time:Date.now(), type:'topup' });
+  state.bank = bank;
+  state.players = await listPlayers();
+  state.txs = await listTx();
+  if(txOk){
+    toast('Berhasil isi saldo '+player.name, 'ok');
+  } else {
+    toast('Saldo terkirim tapi riwayat gagal disimpan', 'err');
+  }
+  state.modal = { type:'topup', playerId: uid, success:true, amount:amt, playerName: player.name };
+  render();
+  setTimeout(()=>{ closeModal(); }, 1400);
+}
+
+async function submitFundBank(){
+  const amt = parseInt(document.getElementById('fundAmt').value, 10);
+  if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
+  let bank = await getBank();
+  if(!bank) bank = { balance: 0 };
+  bank.balance += amt;
+  const ok = await setBank(bank);
+  if(!ok) return;
+  toast('Dana bank ditambahkan', 'ok');
+  state.bank = bank;
+  state.modal = { type:'fundBank', success:true, amount:amt };
+  render();
+  setTimeout(()=>{ closeModal(); }, 1400);
+}
+
+async function submitCreatePay(){
+  const amt = parseInt(document.getElementById('payAmt').value, 10);
+  const label = document.getElementById('payLabel').value.trim();
+  if(!amt || amt <= 0){ toast('Masukkan nominal yang valid', 'err'); return; }
+  const res = await fbPost('paymentRequests', { amount: amt, label, createdBy: state.me.uid, createdAt: Date.now(), active: true });
+  toast('QR pembayaran dibuat', 'ok');
+  closeModal();
+  state.paymentRequests = await listPaymentRequests();
+  render();
+  if(res && res.name) showPayQr(res.name, label, amt);
+}
+
+async function submitReset(){
+  const bankerUid = state.me.uid;
+  const allPlayers = await listPlayers();
+  let playersOk = true;
+  for(const p of allPlayers){
+    if(p.uid === bankerUid) continue; // akun bankir tidak ikut dihapus
+    const ok = await fbDelete('players/'+p.uid);
+    if(!ok) playersOk = false;
+  }
+  const okTxs = await fbDelete('txs');
+  const okPay = await fbDelete('paymentRequests');
+  const okBank = await setBank({ balance: 0 });
+  if(!playersOk || !okTxs || !okPay || !okBank){
+    toast('Sebagian data gagal direset. Coba lagi.', 'err');
+    return;
+  }
+  toast('Permainan direset. Akun bankir tetap sama.', 'ok');
+  state.players = await listPlayers();
+  state.txs = [];
+  state.paymentRequests = [];
+  state.bank = { balance: 0 };
+  state.tab = 'home';
+  state.modal = { type:'reset', success:true };
+  render();
+  setTimeout(()=>{ closeModal(); }, 1600);
+}
+
+/* ---------------- PLAYER DASHBOARD ---------------- */
+function viewPlayer(){
+  const tab = state.tab;
+  return `
+  <div class="topbar">
+    <button class="logout-link" onclick="logout()">← Keluar</button>
+    <div class="stamp">SAH<br>MAIN</div>
+    <div class="balance-block" style="padding-top:18px;">
+      <div class="balance-label">Saldo</div>
+      <div class="balance-num">${money(state.me.balance)}</div>
+      <div class="owner-name">${escapeHtml(state.me.name)}</div>
+    </div>
+  </div>
+  <div class="content">
+    ${tab === 'home' ? playerHomeTab() : ''}
+    ${tab === 'transfer' ? playerTransferTab() : ''}
+    ${tab === 'history' ? historyTab(state.me.uid) : ''}
+  </div>
+  ${tabbarPlayer()}
+  `;
+}
+function tabbarPlayer(){
+  const tabs = [
+    {id:'home', emoji:'📇', label:'QR Saya'},
+    {id:'transfer', emoji:'📤', label:'Transfer'},
+    {id:'history', emoji:'🧾', label:'Riwayat'},
+  ];
+  return `<div class="tabbar">
+    ${tabs.map(t => `
+      <button class="tab-btn ${state.tab===t.id?'active':''}" onclick="setPlayerTab('${t.id}')">
+        <span class="tab-emoji">${t.emoji}</span>${t.label}
+      </button>`).join('')}
+  </div>`;
+}
+function setPlayerTab(id){ state.tab = id; state.transferTarget = null; render(); refreshPlayer(); }
+async function refreshPlayer(){
+  if(state.modal || state.transferTarget) return;
+  const fresh = await getPlayer(state.me.uid);
+  if(fresh) state.me = { uid: state.me.uid, ...fresh };
+  state.players = await listPlayers();
+  state.txs = await listTx();
+  render();
+}
+async function manualRefreshPlayer(){ await refreshPlayer(); toast('Saldo diperbarui', 'ok'); }
+
+function playerHomeTab(){
+  return `
+  <button class="btn btn-outline" style="margin-bottom:16px;" onclick="manualRefreshPlayer()">🔄 Perbarui Saldo</button>
+  <div class="card">
+    <div class="section-title">QR Saya <small>tunjukkan untuk menerima</small></div>
+    <div class="qr-box" data-qr="WG-PLAYER:${state.me.uid}"></div>
+    <p class="hint" style="margin-bottom:0;">Pengirim tinggal scan QR ini untuk mengirim saldo ke kamu.</p>
+  </div>`;
+}
+
+function playerTransferTab(){
+  if(state.transferTarget){
+    const t = state.transferTarget;
+    if(t.success){
+      return `
+      <div class="card">
+        <div class="section-title">✅ Berhasil</div>
+        <p class="modal-sub">${escapeHtml(t.successMsg)}</p>
+      </div>`;
+    }
+    if(t.type === 'pay'){
+      return `
+      <div class="card">
+        <div class="section-title">Konfirmasi Pembayaran</div>
+        <div class="amount-lock">
+          <div class="lbl">${escapeHtml(t.label || 'Bayar ke Bank')}</div>
+          <div class="num">${money(t.amount)}</div>
+        </div>
+        <p class="hint">Nominal ini ditentukan oleh bankir dan tidak bisa diubah.</p>
+        <div class="btn-row">
+          <button class="btn btn-outline" onclick="clearTransferTarget()">Batal</button>
+          <button class="btn btn-primary" onclick="submitPayment()">Bayar Sekarang</button>
+        </div>
+      </div>`;
+    }
+    return `
+    <div class="card">
+      <div class="section-title">Kirim Saldo</div>
+      <div class="target-pill">
+        <div>
+          <div class="player-name">${t.type==='bank' ? '🏦 Bank' : '👛 '+escapeHtml(t.name)}</div>
+          <div class="id-tag">${t.type==='bank' ? 'WG-BANK' : t.id}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="clearTransferTarget()">Ganti</button>
+      </div>
+      <label class="field-label">Jumlah</label>
+      <input type="number" id="sendAmt" inputmode="numeric" placeholder="contoh: 50000">
+      <button class="btn btn-primary" onclick="submitTransfer()">Kirim Sekarang</button>
+    </div>`;
+  }
+  return `
+  <div class="card">
+    <div class="section-title">Pindai QR</div>
+    <button class="btn btn-gold" onclick="openModal('scan')">📷 Buka Kamera</button>
+    <p class="hint" style="margin-top:10px;">Untuk scan QR pemain lain, QR bank, atau QR pembayaran dari bankir.</p>
+  </div>`;
+}
+
+function pickTarget(type, id, name){ state.transferTarget = { type, id, name }; render(); }
+function clearTransferTarget(){ state.transferTarget = null; render(); }
+
+async function submitTransfer(){
+  const amt = parseInt(document.getElementById('sendAmt').value, 10);
+  if(!amt || amt <= 0){ toast('Masukkan jumlah yang valid', 'err'); return; }
+  const me = await getPlayer(state.me.uid);
+  if(!me){ toast('Gagal mengambil data akunmu, coba lagi', 'err'); return; }
+  if(me.balance < amt){ toast('Saldo kamu tidak cukup', 'err'); return; }
+  const t = state.transferTarget;
+  me.balance -= amt;
+  const ok1 = await setPlayer(state.me.uid, me);
+  if(!ok1) return;
+  let toName = 'Bank';
+  if(t.type === 'bank'){
+    let bank = await getBank();
+    console.log('[DEBUG transfer-to-bank] getBank() sebelum tulis:', bank);
+    if(!bank) bank = { balance: 0 };
+    bank.balance += amt;
+    console.log('[DEBUG transfer-to-bank] akan menulis bank.balance =', bank.balance);
+    const okBank = await setBank(bank);
+    console.log('[DEBUG transfer-to-bank] setBank() hasil (true=berhasil):', okBank);
+    const verify = await getBank();
+    console.log('[DEBUG transfer-to-bank] getBank() SETELAH tulis (verifikasi):', verify);
+    if(!okBank){ toast('Gagal menambah saldo bank, transfer dibatalkan', 'err'); me.balance += amt; await setPlayer(state.me.uid, me); return; }
+  } else {
+    const target = await getPlayer(t.id);
+    if(!target){ toast('Penerima tidak ditemukan', 'err'); me.balance += amt; await setPlayer(state.me.uid, me); return; }
+    target.balance += amt;
+    await setPlayer(t.id, target);
+    toName = target.name;
+  }
+  const txOk = await addTx({ from: state.me.uid, fromName: me.name, to: t.type==='bank' ? 'BANK' : t.id, toName, amount: amt, time: Date.now(), type:'transfer' });
+  state.me = { uid: state.me.uid, ...me };
+  state.players = await listPlayers();
+  state.bank = await getBank();
+  state.txs = await listTx();
+  if(txOk){
+    toast('Berhasil kirim ke '+toName, 'ok');
+    state.transferTarget = { success:true, successMsg: 'Berhasil kirim '+money(amt)+' ke '+toName };
+  } else {
+    toast('Saldo terkirim tapi riwayat gagal disimpan — beri tahu bankir', 'err');
+    state.transferTarget = { success:true, successMsg: 'Terkirim ke '+toName+', tapi catatan riwayat gagal disimpan.' };
+  }
+  render();
+  setTimeout(()=>{ state.transferTarget = null; state.tab = 'home'; render(); }, 1600);
+}
+
+async function submitPayment(){
+  const t = state.transferTarget;
+  const fresh = await getPaymentRequest(t.payId);
+  if(!fresh){ toast('QR pembayaran tidak berlaku lagi', 'err'); state.transferTarget = null; render(); return; }
+  const amt = fresh.amount;
+  const me = await getPlayer(state.me.uid);
+  if(!me){ toast('Gagal mengambil data akunmu, coba lagi', 'err'); return; }
+  if(me.balance < amt){ toast('Saldo kamu tidak cukup', 'err'); return; }
+  me.balance -= amt;
+  const ok1 = await setPlayer(state.me.uid, me);
+  if(!ok1) return;
+  const bank = await getBank();
+  console.log('[DEBUG payment] getBank() sebelum tulis:', bank);
+  const bankObj = bank || { balance: 0 };
+  bankObj.balance += amt;
+  console.log('[DEBUG payment] akan menulis bank.balance =', bankObj.balance);
+  const okBank = await setBank(bankObj);
+  console.log('[DEBUG payment] setBank() hasil (true=berhasil):', okBank);
+  const verify = await getBank();
+  console.log('[DEBUG payment] getBank() SETELAH tulis (verifikasi):', verify);
+  if(!okBank){ toast('Gagal menambah saldo bank, pembayaran dibatalkan', 'err'); me.balance += amt; await setPlayer(state.me.uid, me); return; }
+  const txOk = await addTx({ from: state.me.uid, fromName: me.name, to: 'BANK', toName: 'Bank', amount: amt, time: Date.now(), type:'payment', label: fresh.label || '' });
+  state.me = { uid: state.me.uid, ...me };
+  state.bank = bankObj;
+  state.txs = await listTx();
+  if(txOk){
+    toast('Pembayaran berhasil: '+money(amt), 'ok');
+    state.transferTarget = { success:true, successMsg: 'Pembayaran '+money(amt)+' berhasil' };
+  } else {
+    toast('Saldo terpotong tapi riwayat gagal disimpan — beri tahu bankir', 'err');
+    state.transferTarget = { success:true, successMsg: 'Pembayaran '+money(amt)+' terkirim, tapi catatan riwayat gagal disimpan.' };
+  }
+  render();
+  setTimeout(()=>{ state.transferTarget = null; state.tab = 'home'; render(); }, 1600);
+}
+
+/* ---------------- shared: history + modal ---------------- */
+function historyTab(filterUid){
+  const canDelete = state.screen === 'bank';
+  let txs = state.txs;
+  if(filterUid) txs = txs.filter(t => t.from === filterUid || t.to === filterUid);
+  const rows = txs.slice(0, 60).map(t => {
+    const isOut = filterUid && t.from === filterUid;
+    const sign = filterUid ? (isOut ? 'minus' : 'plus') : '';
+    const prefix = filterUid ? (isOut ? '-' : '+') : '';
+    const label = t.type === 'payment' && t.label ? ` (${escapeHtml(t.label)})` : '';
+    const desc = filterUid
+      ? (isOut ? `Ke <b>${escapeHtml(t.toName)}</b>${label}` : `Dari <b>${escapeHtml(t.fromName)}</b>${label}`)
+      : `<b>${escapeHtml(t.fromName)}</b> → <b>${escapeHtml(t.toName)}</b>${label}`;
+    return `
+    <div class="tx-row">
+      <div>
+        <div class="tx-desc">${desc}</div>
+        <div class="tx-time">${timeAgo(t.time)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="tx-amt ${sign}">${prefix}${money(t.amount)}</div>
+        ${canDelete ? `<button class="btn btn-danger btn-sm" style="padding:4px 8px;" onclick="openModal('deleteTx','${t.id}')">🗑️</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="card"><div class="section-title">Riwayat Transaksi</div>${rows || '<p class="empty-note">Belum ada transaksi.</p>'}</div>`;
+}
+
+function openModal(type, playerId){
+  if(type === 'scan') stopScanner();
+  state.modal = { type, playerId };
+  render();
+}
+function closeModal(){ stopScanner(); state.modal = null; render(); }
+
+function renderModalInto(){
+  const m = state.modal;
+  let inner = '';
+  if(m.type === 'addPlayer'){
+    if(m.success){
+      inner = `
+        <div class="modal-title">✅ Akun Dibuat</div>
+        <p class="modal-sub">${escapeHtml(m.name)} — username: <b>${m.username}</b></p>`;
+    } else {
+      inner = `
+        <div class="modal-title">Tambah Akun Pemain</div>
+        <p class="modal-sub">Akun ini bisa langsung dipakai pemain untuk login.</p>
+        <label class="field-label">Nama</label>
+        <input type="text" id="newPlayerName" placeholder="contoh: Budi" autocomplete="off">
+        <label class="field-label">Username Login</label>
+        <input type="text" id="newPlayerUsername" placeholder="contoh: budi" autocomplete="off">
+        <label class="field-label">Password</label>
+        <input type="password" id="newPlayerPassword" placeholder="minimal 6 karakter">
+        <button class="btn btn-primary" onclick="submitAddPlayer()">Buat Akun</button>`;
+    }
+  } else if(m.type === 'topup'){
+    if(m.success){
+      inner = `
+        <div class="modal-title">✅ Berhasil</div>
+        <p class="modal-sub">Saldo ${escapeHtml(m.playerName)} bertambah ${money(m.amount)}.</p>`;
+    } else {
+      const p = state.players.find(x => x.uid === m.playerId);
+      inner = `
+        <div class="modal-title">Isi Saldo ${p ? escapeHtml(p.name) : ''}</div>
+        <p class="modal-sub">Saldo saat ini: ${money(p ? p.balance : 0)}</p>
+        <label class="field-label">Jumlah</label>
+        <input type="number" id="topupAmt" inputmode="numeric" placeholder="contoh: 100000">
+        <button class="btn btn-primary" onclick="submitTopup()">Kirim dari Bank</button>`;
+    }
+  } else if(m.type === 'fundBank'){
+    if(m.success){
+      inner = `
+        <div class="modal-title">✅ Berhasil</div>
+        <p class="modal-sub">Dana bank bertambah ${money(m.amount)}.</p>`;
+    } else {
+      inner = `
+        <div class="modal-title">Tambah Dana Bank</div>
+        <p class="modal-sub">Menambah pool dana yang bisa dibagikan.</p>
+        <label class="field-label">Jumlah</label>
+        <input type="number" id="fundAmt" inputmode="numeric" placeholder="contoh: 500000">
+        <button class="btn btn-primary" onclick="submitFundBank()">Tambahkan</button>`;
+    }
+  } else if(m.type === 'createPay'){
+    inner = `
+      <div class="modal-title">Buat QR Pembayaran</div>
+      <p class="modal-sub">Nominal ini akan terkunci saat pemain scan.</p>
+      <label class="field-label">Nominal</label>
+      <input type="number" id="payAmt" inputmode="numeric" placeholder="contoh: 25000">
+      <label class="field-label">Label (opsional)</label>
+      <input type="text" id="payLabel" placeholder="contoh: Beli tanah petak 5">
+      <button class="btn btn-primary" onclick="submitCreatePay()">Buat QR</button>`;
+  } else if(m.type === 'showPayQr'){
+    inner = `
+      <div class="modal-title">${escapeHtml(m.label || 'QR Pembayaran')}</div>
+      <p class="modal-sub">Nominal: ${money(m.amount)}</p>
+      <div class="qr-box" data-qr="WG-PAY:${m.id}"></div>
+      <p class="hint" style="margin-bottom:0;">Tunjukkan ke pemain untuk di-scan.</p>`;
+  } else if(m.type === 'resetPassword'){
+    if(m.success){
+      inner = `
+        <div class="modal-title">✅ Akun Dipindahkan</div>
+        <p class="modal-sub">${escapeHtml(m.name)} — username baru: <b>${m.username}</b></p>`;
+    } else {
+      const p = state.players.find(x => x.uid === m.playerId);
+      inner = `
+        <div class="modal-title">Reset Password ${p ? escapeHtml(p.name) : ''}</div>
+        <p class="modal-sub">Akun lama (@${p ? p.username : ''}) akan dinonaktifkan dan tidak bisa dipakai login lagi. Akun baru dibuat dengan saldo yang sama (${money(p ? p.balance : 0)}), dan nama tetap sama — cukup beri tahu pemain username &amp; password barunya.</p>
+        <label class="field-label">Username Baru</label>
+        <input type="text" id="rpUsername" placeholder="contoh: budi2" autocomplete="off">
+        <label class="field-label">Password Baru</label>
+        <input type="password" id="rpPassword" placeholder="minimal 6 karakter">
+        <button class="btn btn-primary" onclick="submitResetPassword()">Buat Akun Baru &amp; Pindahkan Saldo</button>`;
+    }
+  } else if(m.type === 'deletePlayer'){
+    if(m.success){
+      inner = `
+        <div class="modal-title">✅ Akun Dihapus</div>
+        <p class="modal-sub">${escapeHtml(m.name)} sudah dihapus dari permainan.</p>`;
+    } else {
+      const p = state.players.find(x => x.uid === m.playerId);
+      inner = `
+        <div class="modal-title">Hapus Akun ${p ? escapeHtml(p.name) : ''}?</div>
+        <p class="modal-sub">Akun ini tidak bisa login lagi setelah dihapus.${p && p.balance > 0 ? ' Sisa saldo '+money(p.balance)+' akan dikembalikan ke kas bank.' : ''} Tindakan ini tidak bisa dibatalkan.</p>
+        <button class="btn btn-danger" onclick="submitDeletePlayer()">Ya, Hapus Akun</button>`;
+    }
+  } else if(m.type === 'deletePayQr'){
+    inner = `
+      <div class="modal-title">Hapus QR Pembayaran?</div>
+      <p class="modal-sub">QR ini tidak akan bisa dipakai lagi setelah dihapus.</p>
+      <button class="btn btn-danger" onclick="submitDeletePayQr()">Ya, Hapus QR</button>`;
+  } else if(m.type === 'deleteTx'){
+    inner = `
+      <div class="modal-title">Hapus Riwayat Transaksi?</div>
+      <p class="modal-sub">Catatan transaksi ini akan hilang permanen dari riwayat. Saldo yang sudah berpindah tidak ikut berubah — ini cuma menghapus catatannya.</p>
+      <button class="btn btn-danger" onclick="submitDeleteTx()">Ya, Hapus</button>`;
+  } else if(m.type === 'reset'){
+    if(m.success){
+      inner = `
+        <div class="modal-title">✅ Permainan Direset</div>
+        <p class="modal-sub">Akun bankir tetap sama. Semua akun pemain, riwayat, QR pembayaran, dan saldo bank sudah kembali ke awal.</p>`;
+    } else {
+      inner = `
+        <div class="modal-title">Reset Permainan?</div>
+        <p class="modal-sub">Semua akun pemain, riwayat transaksi, QR pembayaran, dan saldo bank akan dihapus/kembali ke 0. <b>Akun bankir ini tidak ikut dihapus</b> — kamu tetap login seperti biasa. Tindakan ini tidak bisa dibatalkan.</p>
+        <button class="btn btn-danger" onclick="submitReset()">Ya, Reset Permainan</button>`;
+    }
+  } else if(m.type === 'scan'){
+    inner = `
+      <div class="modal-title">Pindai QR</div>
+      <p class="modal-sub">Arahkan kamera ke QR tujuan.</p>
+      <div id="reader"></div>
+      <p class="hint" id="scanHint" style="margin-bottom:0;">Meminta izin kamera…</p>
+      <div id="scanFallback"></div>`;
+  }
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modalOverlay';
+  overlay.innerHTML = `<div class="modal-card" style="position:relative;"><button class="modal-close" onclick="closeModal()">✕</button>${inner}</div>`;
+  overlay.addEventListener('click', (e)=>{ if(e.target.id === 'modalOverlay') closeModal(); });
+  document.getElementById('shell').appendChild(overlay);
+}
+
+let scannerStartPromise = null;
+
+function startScanner(){
+  const readerEl = document.getElementById('reader');
+  if(!readerEl || typeof Html5Qrcode === 'undefined') return;
+  const hint = document.getElementById('scanHint');
+  try{
+    const qr = new Html5Qrcode('reader');
+    state.scanner = qr;
+    scannerStartPromise = qr.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: 220 },
+      (decodedText) => { handleScanResult(decodedText); },
+      () => {}
+    );
+    scannerStartPromise
+      .then(()=>{ if(hint) hint.textContent = 'Arahkan kamera ke QR tujuan.'; })
+      .catch(()=>{ showScanFallback('Kamera tidak bisa diakses.'); });
+  }catch(e){
+    showScanFallback('Kamera tidak tersedia.');
+  }
+}
+function showScanFallback(msg){
+  const hint = document.getElementById('scanHint');
+  const box = document.getElementById('scanFallback');
+  if(hint) hint.textContent = msg + ' Pilih tujuan manual di bawah:';
+  if(!box) return;
+  const others = state.players.filter(p => p.uid !== state.me.uid && p.role === 'player');
+  const list = others.map(p => `
+    <li class="link-item" onclick="pickTargetFromScan('player','${p.uid}','${escapeHtml(p.name).replace(/'/g,"\\'")}')">
+      <span>👛 ${escapeHtml(p.name)}</span>
+      <span class="player-bal">${money(p.balance)}</span>
+    </li>`).join('');
+  box.innerHTML = `
+    <ul class="link-list" style="margin-top:12px;">
+      <li class="link-item" onclick="pickTargetFromScan('bank', null, 'Bank')">
+        <span>🏦 Bank</span>
+        <span class="player-bal">${money(state.bank ? state.bank.balance : 0)}</span>
+      </li>
+      ${list}
+    </ul>`;
+}
+function pickTargetFromScan(type, id, name){
+  closeModal();
+  pickTarget(type, id, name);
+}
+function stopScanner(){
+  const qr = state.scanner;
+  state.scanner = null;
+  if(!qr) return;
+  const doStop = () => {
+    try{
+      qr.stop().then(()=>{ try{ qr.clear(); }catch(e){} }).catch(()=>{ try{ qr.clear(); }catch(e){} });
+    }catch(e){}
+  };
+  if(scannerStartPromise){
+    scannerStartPromise.then(doStop).catch(doStop);
+  } else {
+    doStop();
+  }
+  scannerStartPromise = null;
+}
+async function handleScanResult(text){
+  stopScanner();
+  state.modal = null;
+  if(text === 'WG-BANK'){ pickTarget('bank', null, 'Bank'); return; }
+  if(text && text.indexOf('WG-PLAYER:') === 0){
+    const uid = text.replace('WG-PLAYER:', '');
+    if(uid === state.me.uid){ toast('Tidak bisa kirim ke diri sendiri', 'err'); render(); return; }
+    const p = await getPlayer(uid);
+    if(!p){ toast('Pemain tidak ditemukan', 'err'); render(); return; }
+    pickTarget('player', uid, p.name);
+    return;
+  }
+  if(text && text.indexOf('WG-PAY:') === 0){
+    const id = text.replace('WG-PAY:', '');
+    const req = await getPaymentRequest(id);
+    if(!req){ toast('QR pembayaran tidak ditemukan', 'err'); render(); return; }
+    state.transferTarget = { type:'pay', payId:id, amount:req.amount, label:req.label };
+    render();
+    return;
+  }
+  toast('QR tidak dikenali', 'err');
+  render();
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
+
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden) return;
+  if(state.screen === 'bank') refreshBank();
+  else if(state.screen === 'player') refreshPlayer();
+});
+
+/* ---------------- init ---------------- */
+boot();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
