@@ -155,7 +155,9 @@ async function setPlayer(p){ return await fbPut('players/'+p.id, p); }
 async function listPlayers(){
   const obj = await fbGet('players');
   if(!obj) return [];
-  const arr = Object.values(obj);
+  // Selalu pakai KEY Firebase sebagai id (bukan field id di dalam datanya),
+  // supaya konsisten walau data lama/rusak tidak punya field id.
+  const arr = Object.keys(obj).map(key => ({ ...obj[key], id: key }));
   arr.sort((a,b)=> a.name.localeCompare(b.name));
   return arr;
 }
