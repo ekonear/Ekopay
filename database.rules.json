@@ -1,33 +1,6 @@
 {
   "rules": {
-    "meta": {
-      ".write": "auth != null && root.child('meta/bankerUid').val() === auth.uid",
-      "bankerUid": {
-        ".read": true,
-        ".write": "!data.exists() && auth != null"
-      }
-    },
-    "bank": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "players": {
-      ".read": "auth != null",
-      ".write": "auth != null && root.child('meta/bankerUid').val() === auth.uid",
-      "$uid": {
-        ".write": "auth != null && (auth.uid === $uid || root.child('meta/bankerUid').val() === auth.uid)"
-      }
-    },
-    "paymentRequests": {
-      ".read": "auth != null",
-      ".write": "auth != null && root.child('meta/bankerUid').val() === auth.uid",
-      "$reqId": {
-        ".write": "auth != null && root.child('meta/bankerUid').val() === auth.uid"
-      }
-    },
-    "txs": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    }
+    ".read": true,
+    ".write": true
   }
 }
