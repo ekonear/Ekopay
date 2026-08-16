@@ -466,11 +466,11 @@ async function submitDeleteTx(){
 async function submitReset(){
   const pKeys = state.players.map(p=>p.id);
   for(const id of pKeys) await fbDelete('players/'+id);
-  await fbDelete('txs');
   await fbDelete('paymentRequests');
-  await setBank({ balance: 0 });
+  // Akun bankir (saldo) dan riwayat transaksi (txs) sengaja TIDAK dihapus.
+  await addTx({ from:'SYSTEM', fromName:'Sistem', to:'SYSTEM', toName:'Sistem', amount:0, time:Date.now(), type:'reset-marker' });
   toast('Permainan direset', 'ok');
-  state.players = []; state.txs = []; state.paymentRequests = []; state.bank = { balance:0 }; state.tab = 'home';
+  state.players = []; state.paymentRequests = []; state.txs = await listTx(); state.tab = 'home';
   state.modal = { type:'reset', success:true };
   render();
   setTimeout(()=>{ closeModal(); }, 1400);
@@ -636,8 +636,16 @@ async function submitPayment(){
 function historyTab(filterId){
   const canDelete = state.view === 'bank';
   let txs = state.txs;
-  if(filterId) txs = txs.filter(t => t.from === filterId || t.to === filterId);
+  // Penanda reset permainan hanya relevan di riwayat umum (bankir), bukan riwayat per-pemain.
+  if(filterId) txs = txs.filter(t => t.type !== 'reset-marker' && (t.from === filterId || t.to === filterId));
   const rows = txs.slice(0, 60).map(t => {
+    if(t.type === 'reset-marker'){
+      return `
+      <div class="tx-row">
+        <div><div class="tx-desc">🔄 <b>Permainan direset</b> — akun pemain &amp; QR dihapus</div><div class="tx-time">${timeAgo(t.time)}</div></div>
+        ${canDelete ? `<button class="btn btn-danger btn-sm" style="padding:4px 8px;" onclick="openModal('deleteTx','${t.id}')">🗑️</button>` : ''}
+      </div>`;
+    }
     const isOut = filterId && t.from === filterId;
     const sign = filterId ? (isOut ? 'minus' : 'plus') : '';
     const prefix = filterId ? (isOut ? '-' : '+') : '';
@@ -701,10 +709,10 @@ function renderModalInto(){
     inner = `<div class="modal-title">Hapus Riwayat Transaksi?</div><p class="modal-sub">Catatan ini akan hilang permanen. Saldo tidak ikut berubah.</p>
       <button class="btn btn-danger" onclick="submitDeleteTx()">Ya, Hapus</button>`;
   } else if(m.type === 'reset'){
-    if(m.success){ inner = `<div class="modal-title">✅ Permainan Direset</div><p class="modal-sub">Semua akun, riwayat, dan QR sudah kembali ke awal.</p>`; }
+    if(m.success){ inner = `<div class="modal-title">✅ Permainan Direset</div><p class="modal-sub">Semua akun pemain dan QR pembayaran sudah dihapus. Saldo bank dan riwayat transaksi tetap tersimpan.</p>`; }
     else { inner = `
       <div class="modal-title">Reset Permainan?</div>
-      <p class="modal-sub">Semua akun pemain, riwayat transaksi, QR pembayaran akan dihapus, dan saldo bank kembali ke 0. Tindakan ini tidak bisa dibatalkan.</p>
+      <p class="modal-sub">Semua akun pemain dan QR pembayaran akan dihapus. Akun bankir (saldo) dan riwayat transaksi <b>tidak</b> akan dihapus. Tindakan ini tidak bisa dibatalkan.</p>
       <button class="btn btn-danger" onclick="submitReset()">Ya, Reset Permainan</button>`; }
   } else if(m.type === 'scan'){
     inner = `<div class="modal-title">Pindai QR</div><p class="modal-sub">Arahkan kamera ke QR tujuan.</p>
