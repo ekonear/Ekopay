@@ -49,7 +49,7 @@
   .role-emoji{ font-size:1.8rem; } .role-title{ font-weight:700; font-size:1.02rem; margin:0 0 2px;}
   .role-desc{ font-size:0.82rem; color:var(--muted); margin:0;}
   label.field-label{ display:block; font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:6px;}
-  input[type=text], input[type=number]{ width:100%; padding:13px 14px; border-radius:10px; border:1.5px solid var(--line);
+  input[type=text], input[type=number], input[type=password]{ width:100%; padding:13px 14px; border-radius:10px; border:1.5px solid var(--line);
     background:var(--paper-lt); font-family:'Inter',sans-serif; font-size:1rem; color:var(--text); margin-bottom:16px; }
   input:focus{ outline:none; border-color:var(--gold); }
   .btn{ display:block; width:100%; text-align:center; padding:14px; border-radius:11px; border:none;
@@ -150,6 +150,12 @@ async function fbDelete(path){
 
 async function getBank(){ return await fbGet('bank'); }
 async function setBank(b){ return await fbPut('bank', b); }
+async function getBankAuth(){ return await fbGet('bankAuth'); }
+async function setBankAuth(a){ return await fbPut('bankAuth', a); }
+async function sha256(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
 async function getPlayer(id){ return await fbGet('players/'+id); }
 async function setPlayer(p){ return await fbPut('players/'+p.id, p); }
 async function listPlayers(){
@@ -228,6 +234,7 @@ function render(){
   const app = document.getElementById('app');
   if(state.view === 'role') app.innerHTML = viewRole();
   else if(state.view === 'bank-setup') app.innerHTML = viewBankSetup();
+  else if(state.view === 'bank-login') app.innerHTML = viewBankLogin();
   else if(state.view === 'bank') app.innerHTML = viewBank();
   else if(state.view === 'player-join') app.innerHTML = viewPlayerJoin();
   else if(state.view === 'player') app.innerHTML = viewPlayer();
@@ -266,12 +273,7 @@ function viewRole(){
 async function goRoleBank(){
   if(!CONFIG_OK){ toast('Hubungkan database dulu di config.js', 'err'); return; }
   state.bank = await getBank();
-  state.view = state.bank ? 'bank' : 'bank-setup';
-  if(state.view === 'bank'){
-    state.players = await listPlayers();
-    state.paymentRequests = await listPaymentRequests();
-    state.txs = await listTx();
-  }
+  state.view = state.bank ? 'bank-login' : 'bank-setup';
   render();
 }
 function goRolePlayer(){
@@ -284,20 +286,61 @@ function backToRole(){ state.view = 'role'; render(); }
 /* ---------------- BANK SETUP ---------------- */
 function viewBankSetup(){
   return `
-  <div class="topbar"><div class="brand">🏦 Buka Kas</div><p class="brand-sub">Tentukan dana awal yang akan kamu bagikan</p></div>
+  <div class="topbar"><div class="brand">🏦 Buka Kas</div><p class="brand-sub">Tentukan dana awal &amp; akun login bankir</p></div>
   <div class="content">
     <label class="field-label">Dana Awal Bank</label>
     <input type="number" id="initBank" inputmode="numeric" placeholder="contoh: 1000000">
-    <p class="hint">Ini total saldo yang bisa kamu bagikan ke pemain. Bisa ditambah lagi nanti kapan saja.</p>
+    <label class="field-label">Username Bankir</label>
+    <input type="text" id="initUser" placeholder="contoh: bankir1" autocomplete="off">
+    <label class="field-label">Password Bankir</label>
+    <input type="password" id="initPass" placeholder="minimal 4 karakter" autocomplete="new-password">
+    <p class="hint">Username &amp; password ini dipakai untuk masuk sebagai bankir nanti. Simpan baik-baik, tidak ada fitur lupa password.</p>
     <button class="btn btn-primary" onclick="submitBankSetup()">Buka Kas</button>
     <button class="btn btn-outline" style="margin-top:10px;" onclick="backToRole()">Kembali</button>
   </div>`;
 }
 async function submitBankSetup(){
   const val = parseInt(document.getElementById('initBank').value, 10);
+  const user = document.getElementById('initUser').value.trim();
+  const pass = document.getElementById('initPass').value;
   if(!val || val <= 0){ toast('Masukkan jumlah dana yang valid', 'err'); return; }
+  if(!user){ toast('Masukkan username bankir', 'err'); return; }
+  if(!pass || pass.length < 4){ toast('Password minimal 4 karakter', 'err'); return; }
   state.bank = { balance: val };
-  await setBank(state.bank);
+  const passwordHash = await sha256(pass);
+  const ok1 = await setBank(state.bank);
+  const ok2 = await setBankAuth({ username: user, passwordHash });
+  if(!ok1 || !ok2) return;
+  state.players = await listPlayers();
+  state.paymentRequests = await listPaymentRequests();
+  state.txs = await listTx();
+  state.view = 'bank';
+  render();
+}
+
+/* ---------------- BANK LOGIN ---------------- */
+function viewBankLogin(){
+  return `
+  <div class="topbar"><div class="brand">🏦 Login Bankir</div><p class="brand-sub">Masuk untuk mengelola kas</p></div>
+  <div class="content">
+    <label class="field-label">Username</label>
+    <input type="text" id="loginUser" placeholder="username bankir" autocomplete="off">
+    <label class="field-label">Password</label>
+    <input type="password" id="loginPass" placeholder="password" autocomplete="current-password">
+    <button class="btn btn-primary" onclick="submitBankLogin()">Masuk</button>
+    <button class="btn btn-outline" style="margin-top:10px;" onclick="backToRole()">Kembali</button>
+  </div>`;
+}
+async function submitBankLogin(){
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  if(!user || !pass){ toast('Isi username dan password', 'err'); return; }
+  const auth = await getBankAuth();
+  if(!auth){ toast('Akun bankir belum diatur, hubungi admin', 'err'); return; }
+  const passwordHash = await sha256(pass);
+  if(auth.username !== user || auth.passwordHash !== passwordHash){
+    toast('Username atau password salah', 'err'); return;
+  }
   state.players = await listPlayers();
   state.paymentRequests = await listPaymentRequests();
   state.txs = await listTx();
@@ -343,6 +386,7 @@ function bankHomeTab(){
   </div>
   <button class="btn btn-primary" onclick="openModal('addPlayer')">➕ Tambah Pemain Baru</button>
   <button class="btn btn-outline" style="margin-top:10px;" onclick="openModal('fundBank')">💰 Tambah Dana ke Bank</button>
+  <button class="btn btn-outline" style="margin-top:10px;" onclick="openModal('changePassword')">🔑 Ganti Password Bankir</button>
   <button class="btn btn-danger" style="margin-top:10px;" onclick="openModal('reset')">Reset Permainan</button>`;
 }
 function bankPlayersTab(){
@@ -464,6 +508,21 @@ async function submitDeleteTx(){
   toast('Riwayat transaksi dihapus', 'ok');
   state.txs = await listTx();
   closeModal(); render();
+}
+async function submitChangePassword(){
+  const oldPass = document.getElementById('oldPass').value;
+  const newPass = document.getElementById('newPass').value;
+  if(!newPass || newPass.length < 4){ toast('Password baru minimal 4 karakter', 'err'); return; }
+  const auth = await getBankAuth();
+  const oldHash = await sha256(oldPass);
+  if(!auth || auth.passwordHash !== oldHash){ toast('Password lama salah', 'err'); return; }
+  const newHash = await sha256(newPass);
+  const ok = await setBankAuth({ username: auth.username, passwordHash: newHash });
+  if(!ok) return;
+  toast('Password berhasil diganti', 'ok');
+  state.modal = { type:'changePassword', success:true };
+  render();
+  setTimeout(()=>{ closeModal(); }, 1400);
 }
 async function submitReset(){
   const pKeys = state.players.map(p=>p.id);
@@ -716,6 +775,13 @@ function renderModalInto(){
       <div class="modal-title">Reset Permainan?</div>
       <p class="modal-sub">Semua akun pemain dan QR pembayaran akan dihapus. Akun bankir (saldo) dan riwayat transaksi <b>tidak</b> akan dihapus. Tindakan ini tidak bisa dibatalkan.</p>
       <button class="btn btn-danger" onclick="submitReset()">Ya, Reset Permainan</button>`; }
+  } else if(m.type === 'changePassword'){
+    if(m.success){ inner = `<div class="modal-title">✅ Password Diperbarui</div><p class="modal-sub">Password bankir berhasil diganti.</p>`; }
+    else { inner = `
+      <div class="modal-title">Ganti Password Bankir</div>
+      <label class="field-label">Password Lama</label><input type="password" id="oldPass" placeholder="password saat ini" autocomplete="current-password">
+      <label class="field-label">Password Baru</label><input type="password" id="newPass" placeholder="minimal 4 karakter" autocomplete="new-password">
+      <button class="btn btn-primary" onclick="submitChangePassword()">Simpan Password Baru</button>`; }
   } else if(m.type === 'scan'){
     inner = `<div class="modal-title">Pindai QR</div><p class="modal-sub">Arahkan kamera ke QR tujuan.</p>
       <div id="reader"></div><p class="hint" id="scanHint" style="margin-bottom:0;">Meminta izin kamera…</p><div id="scanFallback"></div>`;
